@@ -52,7 +52,7 @@ export type ServerMessage =
   | { type: 'ROOM_STATE'; roomId: string; players: { id: string; name: string; ready: boolean }[]; phase: RoomPhase }
   | { type: 'GAME_START'; firstTurn: string }
   | { type: 'FIRE_RESULT'; shooter: string; x: number; y: number; result: 'hit' | 'miss'; shipSunk?: Ship; gotShell?: boolean; shellType?: string }
-  | { type: 'SHELL_RESULT'; shellType: string; targets: { x: number; y: number; result: 'hit' | 'miss'; shipSunk?: Ship }[]; gotShell?: boolean; newShellType?: string }
+  | { type: 'SHELL_RESULT'; shooter: string; shellType: string; targets: { x: number; y: number; result: 'hit' | 'miss'; shipSunk?: Ship }[]; gotShell?: boolean; newShellType?: string }
   | { type: 'TURN_CHANGE'; currentTurn: string }
   | { type: 'ITEM_SPAWNED'; positions: { playerId: string; x: number; y: number }[] }
   | { type: 'INVENTORY_UPDATE'; shells: string[] }
@@ -65,7 +65,7 @@ export const SHELL_TYPES = ['cross', 'multi', 'nuke'] as const;
 export type ShellType = typeof SHELL_TYPES[number];
 
 export const SHIP_CONFIGS = [5, 4, 3, 3, 2] as const;
-export const BOARD_SIZE = 10;
+export const BOARD_SIZE = 15;
 export const ITEM_SPAWN_CHANCE = 0.3;
 export const ITEM_SPAWN_MIN_TURN = 5;
 export const STARTING_SHELLS: ShellType[] = ['cross', 'cross'];
