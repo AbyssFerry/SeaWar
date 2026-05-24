@@ -247,6 +247,10 @@ body {
   background: #c0392b;
 }
 
+.cell.sunk::after {
+  content: '\1F480';
+}
+
 .cell.placing-valid {
   background: #27ae60;
 }
