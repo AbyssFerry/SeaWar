@@ -25,6 +25,7 @@ export function createRoom(playerName: string, ws: any): { room: Room; player: P
     turnCount: 0,
     playAgainVotes: new Set(),
     createdAt: Date.now(),
+    scores: [0, 0],
   };
 
   rooms.set(roomId, room);

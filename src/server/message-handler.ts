@@ -273,10 +273,16 @@ function handleFire(ws: ServerWebSocket, x: number, y: number): void {
   if (checkWin(opponent.board)) {
     room.phase = 'ended';
     room.winner = player.id;
+    const winnerIndex = room.players[0]?.id === player.id ? 0 : 1;
+    room.scores[winnerIndex]++;
     const gameOver: ServerMessage = {
       type: 'GAME_OVER',
       winner: player.id,
       reason: 'All ships destroyed',
+      scores: [...room.scores],
+      revealShips: room.players
+        .filter((p): p is Player => p !== null)
+        .map((p) => ({ playerId: p.id, ships: p.board.ships })),
     };
     broadcast(room, gameOver);
     return;
@@ -348,10 +354,16 @@ function handleUseShell(ws: ServerWebSocket, shellType: ShellType, x: number, y:
   if (checkWin(opponent.board)) {
     room.phase = 'ended';
     room.winner = player.id;
+    const winnerIndex = room.players[0]?.id === player.id ? 0 : 1;
+    room.scores[winnerIndex]++;
     const gameOver: ServerMessage = {
       type: 'GAME_OVER',
       winner: player.id,
       reason: 'All ships destroyed',
+      scores: [...room.scores],
+      revealShips: room.players
+        .filter((p): p is Player => p !== null)
+        .map((p) => ({ playerId: p.id, ships: p.board.ships })),
     };
     broadcast(room, gameOver);
     return;

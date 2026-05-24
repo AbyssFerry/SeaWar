@@ -33,6 +33,7 @@ export type Room = {
   turnCount: number;
   playAgainVotes: Set<string>;
   createdAt: number;
+  scores: [number, number];
 };
 
 export type ClientMessage =
@@ -56,7 +57,7 @@ export type ServerMessage =
   | { type: 'TURN_CHANGE'; currentTurn: string }
   | { type: 'ITEM_SPAWNED'; positions: { playerId: string; x: number; y: number }[] }
   | { type: 'INVENTORY_UPDATE'; shells: string[] }
-  | { type: 'GAME_OVER'; winner: string; reason: string }
+  | { type: 'GAME_OVER'; winner: string; reason: string; scores: number[]; revealShips: { playerId: string; ships: Ship[] }[] }
   | { type: 'RESTART_READY' }
   | { type: 'OPPONENT_LEFT' }
   | { type: 'ERROR'; message: string };
