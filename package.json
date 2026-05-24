@@ -1,0 +1,11 @@
+{
+  "name": "seawar",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "bun --watch server.ts",
+    "start": "bun server.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
