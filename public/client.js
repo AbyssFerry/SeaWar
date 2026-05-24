@@ -32,7 +32,6 @@ const screens = {
   lobby: document.getElementById('lobby'),
   placement: document.getElementById('placement'),
   battle: document.getElementById('battle'),
-  gameOver: document.getElementById('gameOver'),
 };
 
 const playerNameInput = document.getElementById('playerName');
@@ -55,9 +54,12 @@ const enemyBoard = document.getElementById('enemyBoard');
 const turnIndicator = document.getElementById('turnIndicator');
 const shellInventory = document.getElementById('shellInventory');
 
-const gameOverResult = document.getElementById('gameOverResult');
-const gameOverReason = document.getElementById('gameOverReason');
-const btnPlayAgain = document.getElementById('btnPlayAgain');
+const scoreDisplay = document.getElementById('scoreDisplay');
+const gameOverModal = document.getElementById('gameOverModal');
+const modalTitle = document.getElementById('modalTitle');
+const modalScore = document.getElementById('modalScore');
+const btnModalRestart = document.getElementById('btnModalRestart');
+const btnModalExit = document.getElementById('btnModalExit');
 
 // ===== Toast Notification =====
 function showToast(message, type = 'info') {
@@ -163,12 +165,12 @@ function handleServerMessage(msg) {
       break;
 
     case 'GAME_OVER':
-      showGameOver(msg.winner === myId, msg.reason);
+      showGameOverModal(msg.winner === myId, msg.scores, msg.revealShips);
       break;
 
     case 'RESTART_READY':
       resetGameState();
-      showScreen('placement');
+      gameOverModal.classList.add('hidden');
       initPlacementBoard();
       updateShipPalette();
       break;
@@ -660,22 +662,38 @@ function handleItemSpawned(positions) {
   }
 }
 
-// ===== Game Over =====
-function showGameOver(isWinner, reason) {
-  showScreen('gameOver');
-  if (isWinner) {
-    gameOverResult.textContent = '胜利!';
-    gameOverResult.className = 'win';
-    gameOverReason.textContent = reason;
-  } else {
-    gameOverResult.textContent = '失败!';
-    gameOverResult.className = 'lose';
-    gameOverReason.textContent = reason;
+// ===== Game Over Modal =====
+function showGameOverModal(isWinner, scores, revealShips) {
+  scoreDisplay.textContent = `${scores[0]} : ${scores[1]}`;
+  modalTitle.textContent = isWinner ? '胜利!' : '失败!';
+  modalTitle.className = isWinner ? 'win' : 'lose';
+  modalScore.textContent = `${scores[0]} : ${scores[1]}`;
+  gameOverModal.classList.remove('hidden');
+
+  if (revealShips) {
+    for (const rs of revealShips) {
+      const isMyShip = rs.playerId === myId;
+      const boardCells = isMyShip ? myBoardCells : enemyBoardCells;
+      for (const ship of rs.ships) {
+        for (const c of ship.coords) {
+          const cell = boardCells[c.y][c.x];
+          if (!cell.classList.contains('hit') && !cell.classList.contains('sunk')) {
+            cell.classList.add('ship-revealed');
+          }
+        }
+      }
+    }
   }
 }
 
-btnPlayAgain.addEventListener('click', () => {
+btnModalRestart.addEventListener('click', () => {
   send({ type: 'PLAY_AGAIN' });
+});
+
+btnModalExit.addEventListener('click', () => {
+  send({ type: 'LEAVE_ROOM' });
+  ws.close();
+  location.reload();
 });
 
 // ===== Reset =====
@@ -692,6 +710,7 @@ function resetGameState() {
   for (let y = 0; y < BOARD_SIZE; y++) {
     enemyBoardState[y].fill('unknown');
   }
+  gameOverModal.classList.add('hidden');
 }
 
 // ===== Init =====

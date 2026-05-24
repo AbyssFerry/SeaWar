@@ -94,7 +94,10 @@
   <!-- Battle Screen -->
   <div id="battle" class="screen hidden">
     <div class="battle-content">
-      <div id="turnIndicator" class="turn-indicator">你的回合</div>
+      <div class="battle-header">
+        <div id="scoreDisplay" class="score-display">0 : 0</div>
+        <div id="turnIndicator" class="turn-indicator">你的回合</div>
+      </div>
       <div id="shellInventory" class="shell-inventory">
         <button class="shell-btn shell-normal selected" data-shell="normal">普通炮弹</button>
         <button class="shell-btn shell-cross" data-shell="cross">十字炮弹</button>
@@ -111,15 +114,18 @@
           <div id="enemyBoard" class="board"></div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Game Over Screen -->
-  <div id="gameOver" class="screen hidden">
-    <div class="gameover-content">
-      <h2 id="gameOverResult">胜利!</h2>
-      <p id="gameOverReason">你击沉了敌方所有舰船</p>
-      <button id="btnPlayAgain" class="btn btn-primary">再来一局</button>
+      <!-- Game Over Modal -->
+      <div id="gameOverModal" class="modal-overlay hidden">
+        <div class="modal">
+          <h2 id="modalTitle">胜利!</h2>
+          <div id="modalScore" class="modal-score">0 : 0</div>
+          <div class="modal-buttons">
+            <button id="btnModalRestart" class="btn btn-primary">再来一局</button>
+            <button id="btnModalExit" class="btn btn-secondary">退出</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
