@@ -171,6 +171,7 @@ function handleServerMessage(msg) {
     case 'RESTART_READY':
       resetGameState();
       gameOverModal.classList.add('hidden');
+      showScreen('placement');
       initPlacementBoard();
       updateShipPalette();
       break;
