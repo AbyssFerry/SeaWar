@@ -10,13 +10,20 @@ SeaWar 是一个局域网多人海战棋游戏。后端使用 Bun 和 WebSocket 
 4. 命中、击沉和特殊炮弹会影响战局。
 5. 一方舰队被全部击沉后游戏结束，弹出胜负和比分。
 
+## 2.0.0 新增内容
+
+- 新增锦标赛模式，支持创建锦标赛、加入锦标赛和在大厅中查看锦标赛入口。
+- 新增锦标赛赛程广播、匹配房间清理和多局制对战流程。
+- 优化锦标赛配置弹窗、摆放阶段显示、清空摆放控制和离开锦标赛后的大厅返回流程。
+- 修复锦标赛超时状态、物品生成和战斗界面显示相关问题。
+
 ## 下载 Windows 版
 
 打开 GitHub Release 页面：
 
-https://github.com/AbyssFerry/SeaWar/releases/tag/v1.0.0
+https://github.com/AbyssFerry/SeaWar/releases/tag/v2.0.0
 
-下载 `SeaWar-1.0.0-windows-x64.zip`，解压后运行 `SeaWar.exe`。
+下载 `SeaWar-2.0.0-windows-x64.zip`，解压后运行 `SeaWar.exe`。
 
 运行后在浏览器打开：
 
@@ -61,7 +68,7 @@ bun run build:release
 构建完成后会生成：
 
 ```text
-release/SeaWar-1.0.0-windows-x64.zip
+release/SeaWar-2.0.0-windows-x64.zip
 ```
 
 压缩包内包含可直接运行的 `SeaWar.exe`。
