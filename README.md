@@ -10,6 +10,8 @@ SeaWar 是一个局域网多人海战棋游戏。后端使用 Bun 和 WebSocket 
 4. 命中、击沉和特殊炮弹会影响战局。
 5. 一方舰队被全部击沉后游戏结束，弹出胜负和比分。
 
+更完整的界面说明、普通房间流程、锦标赛规则和道具说明见：[玩法说明](docs/gameplay-guide.md)。
+
 ## 2.0.0 新增内容
 
 - 新增锦标赛模式，支持创建锦标赛、加入锦标赛和在大厅中查看锦标赛入口。
@@ -72,3 +74,8 @@ release/SeaWar-2.0.0-windows-x64.zip
 ```
 
 压缩包内包含可直接运行的 `SeaWar.exe`。
+
+## 致谢
+
+- 感谢 [papergames.io](https://papergames.io/) 为 SeaWar 的游戏设计提供参考。
+- 感谢 [01-10-Tree](https://github.com/01-10-Tree) 为前期制作和探索提供 Kimi token 额度。
