@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "bun --watch server.ts",
-    "start": "bun server.ts"
+    "start": "bun server.ts",
+    "build": "bun build ./public/client.ts --outfile ./public/client.js"
   },
   "devDependencies": {
     "@types/bun": "latest",

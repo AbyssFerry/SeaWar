@@ -1,5 +1,9 @@
 import type { ServerMessage, Ship } from '../src/types';
 
+// ===== Config =====
+const BOARD_SIZE = 15;
+const SHIP_SIZES = [5, 4, 3, 3, 2];
+
 // ===== State =====
 let ws: WebSocket | null = null;
 let myId = '';
@@ -13,13 +17,13 @@ let placedShips: Ship[] = [];
 let inventory: string[] = [];
 let myShips: Ship[] = [];
 
-// Board cell state tracking (reuse DOM elements)
+// Board cell state tracking
 const myBoardCells: HTMLDivElement[][] = [];
 const enemyBoardCells: HTMLDivElement[][] = [];
 const placementBoardCells: HTMLDivElement[][] = [];
 
 // Track enemy board knowledge: 'unknown' | 'hit' | 'miss' | 'item'
-const enemyBoardState: string[][] = Array.from({ length: 10 }, () => Array(10).fill('unknown'));
+const enemyBoardState: string[][] = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill('unknown'));
 
 // Track my board hits/misses from opponent
 const myBoardHits = new Set<string>();
@@ -30,7 +34,6 @@ const screens = {
   lobby: document.getElementById('lobby')!,
   placement: document.getElementById('placement')!,
   battle: document.getElementById('battle')!,
-  gameOver: document.getElementById('gameOver')!,
 };
 
 const playerNameInput = document.getElementById('playerName') as HTMLInputElement;
@@ -53,12 +56,28 @@ const enemyBoard = document.getElementById('enemyBoard')!;
 const turnIndicator = document.getElementById('turnIndicator')!;
 const shellInventory = document.getElementById('shellInventory')!;
 
-const gameOverResult = document.getElementById('gameOverResult')!;
-const gameOverReason = document.getElementById('gameOverReason')!;
-const btnPlayAgain = document.getElementById('btnPlayAgain') as HTMLButtonElement;
+const scoreDisplay = document.getElementById('scoreDisplay')!;
+const gameOverModal = document.getElementById('gameOverModal')!;
+const modalTitle = document.getElementById('modalTitle')!;
+const modalScore = document.getElementById('modalScore')!;
+const btnModalRestart = document.getElementById('btnModalRestart') as HTMLButtonElement;
+const btnModalExit = document.getElementById('btnModalExit') as HTMLButtonElement;
+
+// ===== Toast Notification =====
+function showToast(message: string, type = 'info') {
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
+}
 
 // ===== Screen Management =====
-function showScreen(name: 'lobby' | 'placement' | 'battle' | 'gameOver') {
+function showScreen(name: 'lobby' | 'placement' | 'battle') {
   currentPhase = name;
   Object.values(screens).forEach((s) => s.classList.add('hidden'));
   screens[name].classList.remove('hidden');
@@ -66,7 +85,8 @@ function showScreen(name: 'lobby' | 'placement' | 'battle' | 'gameOver') {
 
 // ===== WebSocket =====
 function connect() {
-  ws = new WebSocket(`ws://${location.host}/ws`);
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
   ws.onopen = () => {
     console.log('WebSocket connected');
@@ -121,6 +141,7 @@ function handleServerMessage(msg: ServerMessage) {
       showScreen('battle');
       initBattleBoards();
       updateTurnIndicator();
+      updateShellInventory();
       break;
 
     case 'FIRE_RESULT':
@@ -146,11 +167,12 @@ function handleServerMessage(msg: ServerMessage) {
       break;
 
     case 'GAME_OVER':
-      showGameOver(msg.winner === myId, msg.reason);
+      showGameOverModal(msg.winner === myId, msg.scores, msg.revealShips);
       break;
 
     case 'RESTART_READY':
       resetGameState();
+      gameOverModal.classList.add('hidden');
       showScreen('placement');
       initPlacementBoard();
       updateShipPalette();
@@ -189,7 +211,7 @@ btnCreateRoom.addEventListener('click', () => {
 
 btnJoinRoom.addEventListener('click', () => {
   const name = playerNameInput.value.trim();
-  const rid = roomIdInput.value.trim().toUpperCase();
+  const rid = roomIdInput.value.trim();
   if (!name) {
     alert('请输入你的名字');
     return;
@@ -207,9 +229,9 @@ function initPlacementBoard() {
   placementBoardCells.length = 0;
   placedShips = [];
 
-  for (let y = 0; y < 10; y++) {
+  for (let y = 0; y < BOARD_SIZE; y++) {
     const row: HTMLDivElement[] = [];
-    for (let x = 0; x < 10; x++) {
+    for (let x = 0; x < BOARD_SIZE; x++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
       cell.dataset.x = String(x);
@@ -225,7 +247,7 @@ function initPlacementBoard() {
 }
 
 function getShipsToPlace(): number[] {
-  const allSizes = [5, 4, 3, 3, 2];
+  const allSizes = [...SHIP_SIZES];
   const placedSizes = placedShips.map((s) => s.size);
   const remaining = [...allSizes];
   for (const size of placedSizes) {
@@ -240,13 +262,13 @@ function updateShipPalette() {
   const options = shipPalette.querySelectorAll('.ship-option');
   options.forEach((opt) => {
     const size = Number((opt as HTMLElement).dataset.size);
-    const isPlaced = !remaining.includes(size);
+    const countRemaining = remaining.filter((s) => s === size).length;
+    const isPlaced = countRemaining === 0;
     if (isPlaced) {
       opt.classList.add('placed');
     } else {
       opt.classList.remove('placed');
     }
-    // Highlight selected
     if (size === selectedShipSize && !isPlaced) {
       (opt as HTMLElement).style.borderColor = '#00d4ff';
     } else {
@@ -268,29 +290,22 @@ function getPlacementCoords(x: number, y: number, size: number, horizontal: bool
   for (let i = 0; i < size; i++) {
     const cx = horizontal ? x + i : x;
     const cy = horizontal ? y : y + i;
-    if (cx < 0 || cx >= 10 || cy < 0 || cy >= 10) return null;
+    if (cx < 0 || cx >= BOARD_SIZE || cy < 0 || cy >= BOARD_SIZE) return null;
     coords.push({ x: cx, y: cy });
   }
   return coords;
 }
 
 function isPlacementValid(coords: { x: number; y: number }[]): boolean {
-  // Check overlap and 1-cell spacing (including diagonals)
-  const occupied = new Set<string>();
   for (const ship of placedShips) {
-    for (const c of ship.coords) {
-      occupied.add(`${c.x},${c.y}`);
-      // Add surrounding cells for spacing check
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          occupied.add(`${c.x + dx},${c.y + dy}`);
-        }
+    for (const sc of ship.coords) {
+      for (const c of coords) {
+        if (sc.x === c.x && sc.y === c.y) return false;
+        const dx = Math.abs(sc.x - c.x);
+        const dy = Math.abs(sc.y - c.y);
+        if (dx + dy === 1) return false;
       }
     }
-  }
-
-  for (const c of coords) {
-    if (occupied.has(`${c.x},${c.y}`)) return false;
   }
   return true;
 }
@@ -299,7 +314,6 @@ function onPlacementCellHover(x: number, y: number) {
   clearPlacementPreview();
   const coords = getPlacementCoords(x, y, selectedShipSize, selectedShipHorizontal);
   if (!coords) {
-    // Out of bounds - mark starting cell red
     placementBoardCells[y][x].classList.add('placing-invalid');
     return;
   }
@@ -310,14 +324,16 @@ function onPlacementCellHover(x: number, y: number) {
 }
 
 function clearPlacementPreview() {
-  for (let y = 0; y < 10; y++) {
-    for (let x = 0; x < 10; x++) {
+  for (let y = 0; y < BOARD_SIZE; y++) {
+    for (let x = 0; x < BOARD_SIZE; x++) {
       placementBoardCells[y][x].classList.remove('placing-valid', 'placing-invalid');
     }
   }
 }
 
 function onPlacementCellClick(x: number, y: number) {
+  if (placedShips.length >= SHIP_SIZES.length) return;
+
   const coords = getPlacementCoords(x, y, selectedShipSize, selectedShipHorizontal);
   if (!coords || !isPlacementValid(coords)) return;
 
@@ -330,14 +346,12 @@ function onPlacementCellClick(x: number, y: number) {
   };
   placedShips.push(ship);
 
-  // Render placed ship
   for (const c of coords) {
     placementBoardCells[c.y][c.x].classList.add('ship');
   }
 
   updateShipPalette();
 
-  // Auto-select next available size
   const remaining = getShipsToPlace();
   if (remaining.length > 0) {
     selectedShipSize = remaining[0];
@@ -349,13 +363,74 @@ btnRotate.addEventListener('click', () => {
   selectedShipHorizontal = !selectedShipHorizontal;
 });
 
+function generateRandomShips(): Ship[] {
+  const sizes = [...SHIP_SIZES];
+  const ships: Ship[] = [];
+
+  function canPlace(coords: { x: number; y: number }[]): boolean {
+    for (const c of coords) {
+      if (c.x < 0 || c.x >= BOARD_SIZE || c.y < 0 || c.y >= BOARD_SIZE) return false;
+    }
+    for (const ship of ships) {
+      for (const sc of ship.coords) {
+        for (const c of coords) {
+          if (sc.x === c.x && sc.y === c.y) return false;
+          const dx = Math.abs(sc.x - c.x);
+          const dy = Math.abs(sc.y - c.y);
+          if (dx + dy === 1) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  for (let i = 0; i < sizes.length; i++) {
+    const size = sizes[i];
+    let placed = false;
+    let attempts = 0;
+    while (!placed && attempts < 1000) {
+      attempts++;
+      const horizontal = Math.random() < 0.5;
+      let x: number, y: number;
+      if (horizontal) {
+        x = Math.floor(Math.random() * (BOARD_SIZE - size + 1));
+        y = Math.floor(Math.random() * BOARD_SIZE);
+      } else {
+        x = Math.floor(Math.random() * BOARD_SIZE);
+        y = Math.floor(Math.random() * (BOARD_SIZE - size + 1));
+      }
+      const coords: { x: number; y: number }[] = [];
+      for (let j = 0; j < size; j++) {
+        coords.push(horizontal ? { x: x + j, y } : { x, y: y + j });
+      }
+      if (canPlace(coords)) {
+        ships.push({ id: `ship-${i}`, size, coords, hits: [], sunk: false });
+        placed = true;
+      }
+    }
+    if (!placed) return generateRandomShips();
+  }
+  return ships;
+}
+
 btnRandom.addEventListener('click', () => {
-  send({ type: 'PLACE_SHIPS_AUTO' });
+  placedShips = generateRandomShips();
+  for (let y = 0; y < BOARD_SIZE; y++) {
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      placementBoardCells[y][x].classList.remove('ship');
+    }
+  }
+  for (const ship of placedShips) {
+    for (const c of ship.coords) {
+      placementBoardCells[c.y][c.x].classList.add('ship');
+    }
+  }
+  updateShipPalette();
 });
 
 btnConfirm.addEventListener('click', () => {
-  if (placedShips.length !== 5) {
-    alert('请摆放全部5艘舰船');
+  if (placedShips.length !== SHIP_SIZES.length) {
+    alert(`请摆放全部${SHIP_SIZES.length}艘舰船`);
     return;
   }
   send({ type: 'PLACE_SHIPS', ships: placedShips });
@@ -364,18 +439,16 @@ btnConfirm.addEventListener('click', () => {
 
 // ===== Battle =====
 function initBattleBoards() {
-  // My board
   myBoard.innerHTML = '';
   myBoardCells.length = 0;
   myBoardHits.clear();
   myBoardMisses.clear();
 
-  for (let y = 0; y < 10; y++) {
+  for (let y = 0; y < BOARD_SIZE; y++) {
     const row: HTMLDivElement[] = [];
-    for (let x = 0; x < 10; x++) {
+    for (let x = 0; x < BOARD_SIZE; x++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
-      // Show my ships
       if (myShips.some((s) => s.coords.some((c) => c.x === x && c.y === y))) {
         cell.classList.add('ship');
       }
@@ -385,18 +458,19 @@ function initBattleBoards() {
     myBoardCells.push(row);
   }
 
-  // Enemy board
   enemyBoard.innerHTML = '';
   enemyBoardCells.length = 0;
-  for (let y = 0; y < 10; y++) {
+  for (let y = 0; y < BOARD_SIZE; y++) {
     enemyBoardState[y].fill('unknown');
     const row: HTMLDivElement[] = [];
-    for (let x = 0; x < 10; x++) {
+    for (let x = 0; x < BOARD_SIZE; x++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
       cell.dataset.x = String(x);
       cell.dataset.y = String(y);
       cell.addEventListener('click', () => onEnemyCellClick(x, y));
+      cell.addEventListener('mouseenter', () => onEnemyCellHover(x, y));
+      cell.addEventListener('mouseleave', () => clearShellPreview());
       enemyBoard.appendChild(cell);
       row.push(cell);
     }
@@ -417,30 +491,17 @@ function updateTurnIndicator() {
 }
 
 function updateShellInventory() {
-  const shellNames: Record<string, string> = {
-    normal: '普通炮弹',
-    cross: '十字',
-    multi: '多头',
-    nuke: '核弹',
-  };
-
+  const shellNames: Record<string, string> = { normal: '普通炮弹', cross: '十字', multi: '多头', nuke: '核弹' };
   shellInventory.innerHTML = '';
 
-  // Normal shell is always available
   const normalBtn = document.createElement('button');
   normalBtn.className = `shell-btn shell-normal ${selectedShell === null ? 'selected' : ''}`;
   normalBtn.textContent = shellNames.normal;
-  normalBtn.addEventListener('click', () => {
-    selectedShell = null;
-    updateShellInventory();
-  });
+  normalBtn.addEventListener('click', () => { selectedShell = null; updateShellInventory(); });
   shellInventory.appendChild(normalBtn);
 
-  // Count shells in inventory
   const counts: Record<string, number> = {};
-  for (const s of inventory) {
-    counts[s] = (counts[s] || 0) + 1;
-  }
+  for (const s of inventory) counts[s] = (counts[s] || 0) + 1;
 
   for (const type of ['cross', 'multi', 'nuke'] as const) {
     const count = counts[type] || 0;
@@ -449,14 +510,56 @@ function updateShellInventory() {
     btn.textContent = `${shellNames[type]} (${count})`;
     btn.disabled = count === 0;
     btn.addEventListener('click', () => {
-      if (selectedShell === type) {
-        selectedShell = null;
-      } else {
-        selectedShell = type;
-      }
+      selectedShell = selectedShell === type ? null : type;
       updateShellInventory();
     });
     shellInventory.appendChild(btn);
+  }
+}
+
+// ===== Shell Preview =====
+function getShellPreviewCoords(shellType: string, x: number, y: number): { x: number; y: number }[] {
+  const coords: { x: number; y: number }[] = [];
+  if (shellType === 'cross') {
+    const dirs = [{ x: 0, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }];
+    for (const d of dirs) {
+      const cx = x + d.x, cy = y + d.y;
+      if (cx >= 0 && cx < BOARD_SIZE && cy >= 0 && cy < BOARD_SIZE) coords.push({ x: cx, y: cy });
+    }
+  } else if (shellType === 'nuke') {
+    const pattern = [{ dy: -2, width: 1 }, { dy: -1, width: 3 }, { dy: 0, width: 5 }, { dy: 1, width: 3 }, { dy: 2, width: 1 }];
+    for (const row of pattern) {
+      const cy = y + row.dy;
+      if (cy < 0 || cy >= BOARD_SIZE) continue;
+      const half = Math.floor(row.width / 2);
+      for (let dx = -half; dx <= half; dx++) {
+        const cx = x + dx;
+        if (cx >= 0 && cx < BOARD_SIZE) coords.push({ x: cx, y: cy });
+      }
+    }
+  } else {
+    coords.push({ x, y });
+  }
+  return coords;
+}
+
+function onEnemyCellHover(x: number, y: number) {
+  clearShellPreview();
+  if (!selectedShell) return;
+  const coords = getShellPreviewCoords(selectedShell, x, y);
+  for (const c of coords) {
+    const cell = enemyBoardCells[c.y][c.x];
+    if (!cell.classList.contains('hit') && !cell.classList.contains('miss')) {
+      cell.classList.add('shell-preview');
+    }
+  }
+}
+
+function clearShellPreview() {
+  for (let y = 0; y < BOARD_SIZE; y++) {
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      enemyBoardCells[y][x].classList.remove('shell-preview');
+    }
   }
 }
 
@@ -465,9 +568,13 @@ function onEnemyCellClick(x: number, y: number) {
   if (enemyBoardState[y][x] !== 'unknown' && enemyBoardState[y][x] !== 'item') return;
 
   if (selectedShell) {
+    const idx = inventory.indexOf(selectedShell);
+    if (idx !== -1) {
+      inventory.splice(idx, 1);
+      updateShellInventory();
+    }
     send({ type: 'USE_SHELL', shellType: selectedShell, x, y });
     selectedShell = null;
-    updateShellInventory();
   } else {
     send({ type: 'FIRE', x, y });
   }
@@ -477,22 +584,27 @@ function handleFireResult(msg: Extract<ServerMessage, { type: 'FIRE_RESULT' }>) 
   const key = `${msg.x},${msg.y}`;
 
   if (msg.shooter === myId) {
-    // I shot the enemy - update enemy board
     enemyBoardState[msg.y][msg.x] = msg.result;
     const cell = enemyBoardCells[msg.y][msg.x];
     cell.classList.remove('item');
     cell.classList.add(msg.result);
+
+    if (msg.shipSunk) {
+      for (const c of msg.shipSunk.coords) {
+        enemyBoardCells[c.y][c.x].classList.add('sunk');
+      }
+      showToast(`击沉敌方 ${msg.shipSunk.size} 格战舰！`, 'success');
+    }
   } else {
-    // Enemy shot me - update my board
     const cell = myBoardCells[msg.y][msg.x];
     if (msg.result === 'hit') {
       myBoardHits.add(key);
       cell.classList.add('hit');
-      // Check if ship sunk
       if (msg.shipSunk) {
         for (const c of msg.shipSunk.coords) {
           myBoardCells[c.y][c.x].classList.add('sunk');
         }
+        showToast(`你的 ${msg.shipSunk.size} 格战舰被击沉！`, 'danger');
       }
     } else {
       myBoardMisses.add(key);
@@ -502,25 +614,49 @@ function handleFireResult(msg: Extract<ServerMessage, { type: 'FIRE_RESULT' }>) 
 }
 
 function handleShellResult(msg: Extract<ServerMessage, { type: 'SHELL_RESULT' }>) {
-  for (const target of msg.targets) {
-    enemyBoardState[target.y][target.x] = target.result;
-    const cell = enemyBoardCells[target.y][target.x];
-    cell.classList.remove('item');
-    cell.classList.add(target.result);
+  const isMyShell = msg.shooter === myId;
+  const sunkShips = new Set<number>();
 
-    if (target.shipSunk) {
-      for (const c of target.shipSunk.coords) {
-        enemyBoardCells[c.y][c.x].classList.add('sunk');
+  for (const target of msg.targets) {
+    if (isMyShell) {
+      enemyBoardState[target.y][target.x] = target.result;
+      const cell = enemyBoardCells[target.y][target.x];
+      cell.classList.remove('item');
+      cell.classList.add(target.result);
+      if (target.shipSunk) {
+        for (const c of target.shipSunk.coords) {
+          enemyBoardCells[c.y][c.x].classList.add('sunk');
+        }
+        sunkShips.add(target.shipSunk.size);
       }
+    } else {
+      const cell = myBoardCells[target.y][target.x];
+      if (target.result === 'hit') {
+        cell.classList.add('hit');
+        if (target.shipSunk) {
+          for (const c of target.shipSunk.coords) {
+            myBoardCells[c.y][c.x].classList.add('sunk');
+          }
+          sunkShips.add(target.shipSunk.size);
+        }
+      } else {
+        cell.classList.add('miss');
+      }
+    }
+  }
+
+  for (const size of sunkShips) {
+    if (isMyShell) {
+      showToast(`击沉敌方 ${size} 格战舰！`, 'success');
+    } else {
+      showToast(`你的 ${size} 格战舰被击沉！`, 'danger');
     }
   }
 }
 
 function handleItemSpawned(positions: { playerId: string; x: number; y: number }[]) {
   for (const pos of positions) {
-    // Only show items on enemy board (items on my board are invisible to me)
     if (pos.playerId !== myId) {
-      // Check if cell is still unknown before showing item
       if (enemyBoardState[pos.y][pos.x] === 'unknown') {
         enemyBoardState[pos.y][pos.x] = 'item';
         enemyBoardCells[pos.y][pos.x].classList.add('item');
@@ -529,22 +665,38 @@ function handleItemSpawned(positions: { playerId: string; x: number; y: number }
   }
 }
 
-// ===== Game Over =====
-function showGameOver(isWinner: boolean, reason: string) {
-  showScreen('gameOver');
-  if (isWinner) {
-    gameOverResult.textContent = '胜利!';
-    gameOverResult.className = 'win';
-    gameOverReason.textContent = reason;
-  } else {
-    gameOverResult.textContent = '失败!';
-    gameOverResult.className = 'lose';
-    gameOverReason.textContent = reason;
+// ===== Game Over Modal =====
+function showGameOverModal(isWinner: boolean, scores: number[], revealShips: { playerId: string; ships: Ship[] }[] | undefined) {
+  scoreDisplay.textContent = `${scores[0]} : ${scores[1]}`;
+  modalTitle.textContent = isWinner ? '胜利!' : '失败!';
+  modalTitle.className = isWinner ? 'win' : 'lose';
+  modalScore.textContent = `${scores[0]} : ${scores[1]}`;
+  gameOverModal.classList.remove('hidden');
+
+  if (revealShips) {
+    for (const rs of revealShips) {
+      const isMyShip = rs.playerId === myId;
+      const boardCells = isMyShip ? myBoardCells : enemyBoardCells;
+      for (const ship of rs.ships) {
+        for (const c of ship.coords) {
+          const cell = boardCells[c.y][c.x];
+          if (!cell.classList.contains('hit') && !cell.classList.contains('sunk')) {
+            cell.classList.add('ship-revealed');
+          }
+        }
+      }
+    }
   }
 }
 
-btnPlayAgain.addEventListener('click', () => {
+btnModalRestart.addEventListener('click', () => {
   send({ type: 'PLAY_AGAIN' });
+});
+
+btnModalExit.addEventListener('click', () => {
+  send({ type: 'LEAVE_ROOM' });
+  if (ws) ws.close();
+  location.reload();
 });
 
 // ===== Reset =====
@@ -558,9 +710,10 @@ function resetGameState() {
   myShips = [];
   myBoardHits.clear();
   myBoardMisses.clear();
-  for (let y = 0; y < 10; y++) {
+  for (let y = 0; y < BOARD_SIZE; y++) {
     enemyBoardState[y].fill('unknown');
   }
+  gameOverModal.classList.add('hidden');
 }
 
 // ===== Init =====
