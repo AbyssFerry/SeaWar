@@ -94,7 +94,10 @@ function closeConnection() {
 var screens = {
   lobby: document.getElementById("lobby"),
   placement: document.getElementById("placement"),
-  battle: document.getElementById("battle")
+  battle: document.getElementById("battle"),
+  tournamentMenu: document.getElementById("tournament-menu"),
+  tournamentLobby: document.getElementById("tournament-lobby"),
+  tournamentMain: document.getElementById("tournament-main")
 };
 var playerNameInput = document.getElementById("playerName");
 var roomIdInput = document.getElementById("roomIdInput");
@@ -134,8 +137,21 @@ function showToast(message, type = "info") {
 }
 function showScreen(name) {
   state.currentPhase = name;
-  Object.values(screens).forEach((s) => s.classList.add("hidden"));
-  screens[name].classList.remove("hidden");
+  Object.values(screens).forEach((s) => s?.classList.add("hidden"));
+  const keyMap = {
+    lobby: "lobby",
+    placement: "placement",
+    battle: "battle",
+    "tournament-menu": "tournamentMenu",
+    "tournament-lobby": "tournamentLobby",
+    "tournament-main": "tournamentMain"
+  };
+  const screen = screens[keyMap[name]];
+  if (!screen) {
+    console.error(`Unknown screen: ${name}`);
+    return;
+  }
+  screen.classList.remove("hidden");
 }
 
 // client/screens/lobby.ts
@@ -153,7 +169,11 @@ function showRoomCreated(roomId) {
   roomIdDisplay.textContent = roomId;
   roomInfo.classList.remove("hidden");
 }
+var initialized = false;
 function init() {
+  if (initialized)
+    return;
+  initialized = true;
   btnCreateRoom.addEventListener("click", () => {
     const name = playerNameInput.value.trim();
     if (!name) {
@@ -174,6 +194,35 @@ function init() {
       return;
     }
     send({ type: "JOIN_ROOM", roomId: rid, playerName: name });
+  });
+  const btnCreateTournament = document.getElementById("btn-create-tournament");
+  const btnJoinTournament = document.getElementById("btn-join-tournament");
+  const codeInput = document.getElementById("tournament-code-input");
+  const modal = document.getElementById("tournament-config-modal");
+  const confirmBtn = document.getElementById("btn-tournament-config-confirm");
+  const cancelBtn = document.getElementById("btn-tournament-config-cancel");
+  const nameInput = document.getElementById("tournament-name-input");
+  const gamesSelect = document.getElementById("tournament-games-select");
+  btnCreateTournament?.addEventListener("click", () => {
+    modal?.classList.remove("hidden");
+  });
+  cancelBtn?.addEventListener("click", () => {
+    modal?.classList.add("hidden");
+  });
+  confirmBtn?.addEventListener("click", () => {
+    const name = nameInput?.value.trim() || "我的锦标赛";
+    const gamesToWin = parseInt(gamesSelect?.value ?? "3");
+    send({ type: "CREATE_TOURNAMENT", name, gamesToWin });
+    modal?.classList.add("hidden");
+  });
+  btnJoinTournament?.addEventListener("click", () => {
+    const code = codeInput?.value.trim() ?? "";
+    if (code.length !== 6) {
+      alert("请输入6位房间码");
+      return;
+    }
+    const playerName = playerNameInput.value.trim() || "Player";
+    send({ type: "JOIN_TOURNAMENT", code, playerName });
   });
 }
 
@@ -649,34 +698,7 @@ function hideModal() {
 }
 
 // client/screens/tournament-menu.ts
-function init4() {
-  const normalBtn = document.getElementById("btn-normal-game");
-  const createBtn = document.getElementById("btn-create-tournament");
-  const joinBtn = document.getElementById("btn-join-tournament");
-  const codeInput = document.getElementById("tournament-code-input");
-  normalBtn?.addEventListener("click", () => {
-    showScreen("lobby");
-  });
-  createBtn?.addEventListener("click", () => {
-    const name = prompt("锦标赛名称:", "我的锦标赛") || "我的锦标赛";
-    const gamesStr = prompt("每轮几局决胜负? (1/2/3)", "1") || "1";
-    const gamesToWin = parseInt(gamesStr);
-    if (gamesToWin < 1 || gamesToWin > 3) {
-      alert("请输入 1, 2 或 3");
-      return;
-    }
-    send({ type: "CREATE_TOURNAMENT", name, gamesToWin });
-  });
-  joinBtn?.addEventListener("click", () => {
-    const code = codeInput.value.trim();
-    if (code.length !== 6) {
-      alert("请输入6位房间码");
-      return;
-    }
-    const playerName = prompt("你的名字:", "Player") || "Player";
-    send({ type: "JOIN_TOURNAMENT", code, playerName });
-  });
-}
+function init4() {}
 
 // client/screens/tournament-lobby.ts
 function init5() {
@@ -688,7 +710,7 @@ function init5() {
   leaveBtn?.addEventListener("click", () => {
     send({ type: "LEAVE_TOURNAMENT" });
     resetTournamentState();
-    showScreen("tournament-menu");
+    showScreen("lobby");
   });
 }
 function showTournamentLobby(name, code, hostId, participants) {
@@ -935,5 +957,5 @@ init3();
 init4();
 init5();
 init6();
-showScreen("tournament-menu");
+showScreen("lobby");
 initWebSocket(handleServerMessage);
