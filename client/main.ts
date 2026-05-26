@@ -144,8 +144,8 @@ tournamentMenu.init();
 tournamentLobby.init();
 tournamentMain.init();
 
-// Show tournament menu by default
-showScreen('tournament-menu');
+// Show lobby by default
+showScreen('lobby');
 
 // Connect to WebSocket server
 initWebSocket(handleServerMessage);
