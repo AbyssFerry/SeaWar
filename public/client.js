@@ -849,6 +849,11 @@ function showTournamentEnded(rankings) {
   }
 }
 
+// client/core/tournament-navigation.ts
+function shouldReturnToTournamentMainAfterMatch(completedMatchId, state2) {
+  return state2.currentPhase === "battle" && state2.currentMatchId === completedMatchId;
+}
+
 // client/main.ts
 function handleServerMessage(msg) {
   switch (msg.type) {
@@ -899,8 +904,11 @@ function handleServerMessage(msg) {
         if (msg.matchComplete === false) {
           break;
         }
+        const completedMatchId = state.currentMatchId;
         setTimeout(() => {
-          showTournamentMain("", state.tournamentCode);
+          if (shouldReturnToTournamentMainAfterMatch(completedMatchId, state)) {
+            showTournamentMain("", state.tournamentCode);
+          }
         }, 2000);
       } else {
         showModal(msg.winner === state.myId, msg.scores, msg.revealShips);

@@ -9,6 +9,7 @@ import * as gameover from './screens/gameover';
 import * as tournamentMenu from './screens/tournament-menu';
 import * as tournamentLobby from './screens/tournament-lobby';
 import * as tournamentMain from './screens/tournament-main';
+import { shouldReturnToTournamentMainAfterMatch } from './core/tournament-navigation';
 
 function handleServerMessage(msg: ServerMessage) {
   switch (msg.type) {
@@ -72,8 +73,11 @@ function handleServerMessage(msg: ServerMessage) {
         if (msg.matchComplete === false) {
           break;
         }
+        const completedMatchId = state.currentMatchId;
         setTimeout(() => {
-          tournamentMain.showTournamentMain('', state.tournamentCode);
+          if (shouldReturnToTournamentMainAfterMatch(completedMatchId, state)) {
+            tournamentMain.showTournamentMain('', state.tournamentCode);
+          }
         }, 2000);
       } else {
         gameover.showModal(msg.winner === state.myId, msg.scores, msg.revealShips);
