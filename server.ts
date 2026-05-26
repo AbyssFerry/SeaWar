@@ -1,4 +1,7 @@
 import { handleMessage, handleClose } from './src/server/message-handler';
+import indexHtmlPath from './public/index.html' with { type: 'file' };
+import clientJsPath from './public/client.js' with { type: 'file' };
+import styleCssPath from './public/style.css' with { type: 'file' };
 
 Bun.serve({
   port: 3000,
@@ -14,15 +17,15 @@ Bun.serve({
 
     // Static files
     if (pathname === '/' || pathname === '/index.html') {
-      return new Response(Bun.file('./public/index.html'));
+      return new Response(Bun.file(indexHtmlPath as unknown as string));
     }
     if (pathname === '/client.js') {
-      return new Response(Bun.file('./public/client.js'), {
+      return new Response(Bun.file(clientJsPath), {
         headers: { 'Content-Type': 'application/javascript' },
       });
     }
     if (pathname === '/style.css') {
-      return new Response(Bun.file('./public/style.css'), {
+      return new Response(Bun.file(styleCssPath), {
         headers: { 'Content-Type': 'text/css' },
       });
     }

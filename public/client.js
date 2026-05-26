@@ -1,23 +1,81 @@
-// public/client.ts
+// client/config.ts
 var BOARD_SIZE = 15;
 var SHIP_SIZES = [5, 4, 3, 3, 2];
+var SHELL_NAMES = {
+  normal: "普通炮弹",
+  cross: "十字",
+  multi: "多头",
+  nuke: "核弹"
+};
+
+// client/state.ts
+var state = {
+  myId: "",
+  roomId: "",
+  currentPhase: "lobby",
+  isMyTurn: false,
+  selectedShell: null,
+  selectedShipSize: 5,
+  selectedShipHorizontal: true,
+  placedShips: [],
+  inventory: [],
+  myShips: [],
+  myBoardCells: [],
+  enemyBoardCells: [],
+  placementBoardCells: [],
+  enemyBoardState: Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill("unknown")),
+  myBoardHits: new Set,
+  myBoardMisses: new Set
+};
+function resetGameState() {
+  state.isMyTurn = false;
+  state.selectedShell = null;
+  state.selectedShipSize = 5;
+  state.selectedShipHorizontal = true;
+  state.placedShips = [];
+  state.inventory = [];
+  state.myShips = [];
+  state.myBoardHits.clear();
+  state.myBoardMisses.clear();
+  for (let y = 0;y < BOARD_SIZE; y++) {
+    state.enemyBoardState[y].fill("unknown");
+  }
+}
+
+// client/ws.ts
 var ws = null;
-var myId = "";
-var roomId = "";
-var currentPhase = "lobby";
-var isMyTurn = false;
-var selectedShell = null;
-var selectedShipSize = 5;
-var selectedShipHorizontal = true;
-var placedShips = [];
-var inventory = [];
-var myShips = [];
-var myBoardCells = [];
-var enemyBoardCells = [];
-var placementBoardCells = [];
-var enemyBoardState = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill("unknown"));
-var myBoardHits = new Set;
-var myBoardMisses = new Set;
+var messageHandler = null;
+function initWebSocket(handler) {
+  messageHandler = handler;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+  ws.onopen = () => {
+    console.log("WebSocket connected");
+  };
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (messageHandler)
+      messageHandler(msg);
+  };
+  ws.onclose = () => {
+    alert("连接已断开，请刷新页面重试");
+    location.reload();
+  };
+  ws.onerror = () => {
+    alert("WebSocket 错误");
+  };
+}
+function send(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+  }
+}
+function closeConnection() {
+  if (ws)
+    ws.close();
+}
+
+// client/dom.ts
 var screens = {
   lobby: document.getElementById("lobby"),
   placement: document.getElementById("placement"),
@@ -46,6 +104,8 @@ var modalTitle = document.getElementById("modalTitle");
 var modalScore = document.getElementById("modalScore");
 var btnModalRestart = document.getElementById("btnModalRestart");
 var btnModalExit = document.getElementById("btnModalExit");
+
+// client/utils.ts
 function showToast(message, type = "info") {
   const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
@@ -58,94 +118,12 @@ function showToast(message, type = "info") {
   }, 2500);
 }
 function showScreen(name) {
-  currentPhase = name;
+  state.currentPhase = name;
   Object.values(screens).forEach((s) => s.classList.add("hidden"));
   screens[name].classList.remove("hidden");
 }
-function connect() {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-  ws.onopen = () => {
-    console.log("WebSocket connected");
-  };
-  ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
-    handleServerMessage(msg);
-  };
-  ws.onclose = () => {
-    alert("连接已断开，请刷新页面重试");
-    location.reload();
-  };
-  ws.onerror = () => {
-    alert("WebSocket 错误");
-  };
-}
-function send(msg) {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(msg));
-  }
-}
-function handleServerMessage(msg) {
-  switch (msg.type) {
-    case "ROOM_CREATED":
-      roomId = msg.roomId;
-      roomIdDisplay.textContent = roomId;
-      roomInfo.classList.remove("hidden");
-      break;
-    case "PLAYER_ASSIGNED":
-      myId = msg.playerId;
-      break;
-    case "ROOM_STATE":
-      roomId = msg.roomId;
-      updatePlayerList(msg.players);
-      if (msg.phase === "placement" && currentPhase === "lobby") {
-        showScreen("placement");
-        initPlacementBoard();
-        updateShipPalette();
-      }
-      break;
-    case "GAME_START":
-      isMyTurn = msg.firstTurn === myId;
-      showScreen("battle");
-      initBattleBoards();
-      updateTurnIndicator();
-      updateShellInventory();
-      break;
-    case "FIRE_RESULT":
-      handleFireResult(msg);
-      break;
-    case "SHELL_RESULT":
-      handleShellResult(msg);
-      break;
-    case "TURN_CHANGE":
-      isMyTurn = msg.currentTurn === myId;
-      updateTurnIndicator();
-      break;
-    case "ITEM_SPAWNED":
-      handleItemSpawned(msg.positions);
-      break;
-    case "INVENTORY_UPDATE":
-      inventory = msg.shells;
-      updateShellInventory();
-      break;
-    case "GAME_OVER":
-      showGameOverModal(msg.winner === myId, msg.scores, msg.revealShips);
-      break;
-    case "RESTART_READY":
-      resetGameState();
-      gameOverModal.classList.add("hidden");
-      showScreen("placement");
-      initPlacementBoard();
-      updateShipPalette();
-      break;
-    case "OPPONENT_LEFT":
-      alert("对手已离开");
-      break;
-    case "ERROR":
-      console.error("Server error:", msg.message);
-      break;
-  }
-}
+
+// client/screens/lobby.ts
 function updatePlayerList(players) {
   playerList.innerHTML = "";
   for (const p of players) {
@@ -156,86 +134,35 @@ function updatePlayerList(players) {
   }
   roomStatus.textContent = players.length < 2 ? "等待玩家加入..." : "玩家已集齐，准备开始!";
 }
-btnCreateRoom.addEventListener("click", () => {
-  const name = playerNameInput.value.trim();
-  if (!name) {
-    alert("请输入你的名字");
-    return;
-  }
-  send({ type: "CREATE_ROOM", playerName: name });
-});
-btnJoinRoom.addEventListener("click", () => {
-  const name = playerNameInput.value.trim();
-  const rid = roomIdInput.value.trim();
-  if (!name) {
-    alert("请输入你的名字");
-    return;
-  }
-  if (!rid) {
-    alert("请输入房间号");
-    return;
-  }
-  send({ type: "JOIN_ROOM", roomId: rid, playerName: name });
-});
-function initPlacementBoard() {
-  placementBoard.innerHTML = "";
-  placementBoardCells.length = 0;
-  placedShips = [];
-  for (let y = 0;y < BOARD_SIZE; y++) {
-    const row = [];
-    for (let x = 0;x < BOARD_SIZE; x++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      cell.dataset.x = String(x);
-      cell.dataset.y = String(y);
-      cell.addEventListener("click", () => onPlacementCellClick(x, y));
-      cell.addEventListener("mouseenter", () => onPlacementCellHover(x, y));
-      cell.addEventListener("mouseleave", () => clearPlacementPreview());
-      placementBoard.appendChild(cell);
-      row.push(cell);
-    }
-    placementBoardCells.push(row);
-  }
+function showRoomCreated(roomId) {
+  roomIdDisplay.textContent = roomId;
+  roomInfo.classList.remove("hidden");
 }
-function getShipsToPlace() {
-  const allSizes = [...SHIP_SIZES];
-  const placedSizes = placedShips.map((s) => s.size);
-  const remaining = [...allSizes];
-  for (const size of placedSizes) {
-    const idx = remaining.indexOf(size);
-    if (idx !== -1)
-      remaining.splice(idx, 1);
-  }
-  return remaining;
-}
-function updateShipPalette() {
-  const remaining = getShipsToPlace();
-  const options = shipPalette.querySelectorAll(".ship-option");
-  options.forEach((opt) => {
-    const size = Number(opt.dataset.size);
-    const countRemaining = remaining.filter((s) => s === size).length;
-    const isPlaced = countRemaining === 0;
-    if (isPlaced) {
-      opt.classList.add("placed");
-    } else {
-      opt.classList.remove("placed");
+function init() {
+  btnCreateRoom.addEventListener("click", () => {
+    const name = playerNameInput.value.trim();
+    if (!name) {
+      alert("请输入你的名字");
+      return;
     }
-    if (size === selectedShipSize && !isPlaced) {
-      opt.style.borderColor = "#00d4ff";
-    } else {
-      opt.style.borderColor = "";
+    send({ type: "CREATE_ROOM", playerName: name });
+  });
+  btnJoinRoom.addEventListener("click", () => {
+    const name = playerNameInput.value.trim();
+    const rid = roomIdInput.value.trim();
+    if (!name) {
+      alert("请输入你的名字");
+      return;
     }
+    if (!rid) {
+      alert("请输入房间号");
+      return;
+    }
+    send({ type: "JOIN_ROOM", roomId: rid, playerName: name });
   });
 }
-shipPalette.addEventListener("click", (e) => {
-  const option = e.target.closest(".ship-option");
-  if (!option)
-    return;
-  if (option.classList.contains("placed"))
-    return;
-  selectedShipSize = Number(option.dataset.size);
-  updateShipPalette();
-});
+
+// client/core/ships.ts
 function getPlacementCoords(x, y, size, horizontal) {
   const coords = [];
   for (let i = 0;i < size; i++) {
@@ -247,7 +174,7 @@ function getPlacementCoords(x, y, size, horizontal) {
   }
   return coords;
 }
-function isPlacementValid(coords) {
+function isPlacementValid(coords, placedShips) {
   for (const ship of placedShips) {
     for (const sc of ship.coords) {
       for (const c of coords) {
@@ -262,52 +189,6 @@ function isPlacementValid(coords) {
   }
   return true;
 }
-function onPlacementCellHover(x, y) {
-  clearPlacementPreview();
-  const coords = getPlacementCoords(x, y, selectedShipSize, selectedShipHorizontal);
-  if (!coords) {
-    placementBoardCells[y][x].classList.add("placing-invalid");
-    return;
-  }
-  const valid = isPlacementValid(coords);
-  for (const c of coords) {
-    placementBoardCells[c.y][c.x].classList.add(valid ? "placing-valid" : "placing-invalid");
-  }
-}
-function clearPlacementPreview() {
-  for (let y = 0;y < BOARD_SIZE; y++) {
-    for (let x = 0;x < BOARD_SIZE; x++) {
-      placementBoardCells[y][x].classList.remove("placing-valid", "placing-invalid");
-    }
-  }
-}
-function onPlacementCellClick(x, y) {
-  if (placedShips.length >= SHIP_SIZES.length)
-    return;
-  const coords = getPlacementCoords(x, y, selectedShipSize, selectedShipHorizontal);
-  if (!coords || !isPlacementValid(coords))
-    return;
-  const ship = {
-    id: `ship-${placedShips.length}`,
-    size: selectedShipSize,
-    coords: coords.map((c) => ({ ...c })),
-    hits: [],
-    sunk: false
-  };
-  placedShips.push(ship);
-  for (const c of coords) {
-    placementBoardCells[c.y][c.x].classList.add("ship");
-  }
-  updateShipPalette();
-  const remaining = getShipsToPlace();
-  if (remaining.length > 0) {
-    selectedShipSize = remaining[0];
-  }
-  updateShipPalette();
-}
-btnRotate.addEventListener("click", () => {
-  selectedShipHorizontal = !selectedShipHorizontal;
-});
 function generateRandomShips() {
   const sizes = [...SHIP_SIZES];
   const ships = [];
@@ -359,108 +240,146 @@ function generateRandomShips() {
   }
   return ships;
 }
-btnRandom.addEventListener("click", () => {
-  placedShips = generateRandomShips();
+function getShipsToPlace(placedShips) {
+  const allSizes = [...SHIP_SIZES];
+  const placedSizes = placedShips.map((s) => s.size);
+  const remaining = [...allSizes];
+  for (const size of placedSizes) {
+    const idx = remaining.indexOf(size);
+    if (idx !== -1)
+      remaining.splice(idx, 1);
+  }
+  return remaining;
+}
+
+// client/screens/placement.ts
+function initBoard() {
+  placementBoard.innerHTML = "";
+  state.placementBoardCells.length = 0;
+  state.placedShips = [];
   for (let y = 0;y < BOARD_SIZE; y++) {
-    for (let x = 0;x < BOARD_SIZE; x++) {
-      placementBoardCells[y][x].classList.remove("ship");
-    }
-  }
-  for (const ship of placedShips) {
-    for (const c of ship.coords) {
-      placementBoardCells[c.y][c.x].classList.add("ship");
-    }
-  }
-  updateShipPalette();
-});
-btnConfirm.addEventListener("click", () => {
-  if (placedShips.length !== SHIP_SIZES.length) {
-    alert(`请摆放全部${SHIP_SIZES.length}艘舰船`);
-    return;
-  }
-  send({ type: "PLACE_SHIPS", ships: placedShips });
-  myShips = placedShips.map((s) => ({ ...s, coords: s.coords.map((c) => ({ ...c })) }));
-});
-function initBattleBoards() {
-  myBoard.innerHTML = "";
-  myBoardCells.length = 0;
-  myBoardHits.clear();
-  myBoardMisses.clear();
-  for (let y = 0;y < BOARD_SIZE; y++) {
-    const row = [];
-    for (let x = 0;x < BOARD_SIZE; x++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      if (myShips.some((s) => s.coords.some((c) => c.x === x && c.y === y))) {
-        cell.classList.add("ship");
-      }
-      myBoard.appendChild(cell);
-      row.push(cell);
-    }
-    myBoardCells.push(row);
-  }
-  enemyBoard.innerHTML = "";
-  enemyBoardCells.length = 0;
-  for (let y = 0;y < BOARD_SIZE; y++) {
-    enemyBoardState[y].fill("unknown");
     const row = [];
     for (let x = 0;x < BOARD_SIZE; x++) {
       const cell = document.createElement("div");
       cell.className = "cell";
       cell.dataset.x = String(x);
       cell.dataset.y = String(y);
-      cell.addEventListener("click", () => onEnemyCellClick(x, y));
-      cell.addEventListener("mouseenter", () => onEnemyCellHover(x, y));
-      cell.addEventListener("mouseleave", () => clearShellPreview());
-      enemyBoard.appendChild(cell);
+      cell.addEventListener("click", () => onPlacementCellClick(x, y));
+      cell.addEventListener("mouseenter", () => onPlacementCellHover(x, y));
+      cell.addEventListener("mouseleave", () => clearPlacementPreview());
+      placementBoard.appendChild(cell);
       row.push(cell);
     }
-    enemyBoardCells.push(row);
-  }
-  updateShellInventory();
-}
-function updateTurnIndicator() {
-  if (isMyTurn) {
-    turnIndicator.textContent = "你的回合 ⚔️";
-    turnIndicator.classList.remove("waiting");
-  } else {
-    turnIndicator.textContent = "对手回合 ⏳";
-    turnIndicator.classList.add("waiting");
+    state.placementBoardCells.push(row);
   }
 }
-function updateShellInventory() {
-  const shellNames = { normal: "普通炮弹", cross: "十字", multi: "多头", nuke: "核弹" };
-  shellInventory.innerHTML = "";
-  const normalBtn = document.createElement("button");
-  normalBtn.className = `shell-btn shell-normal ${selectedShell === null ? "selected" : ""}`;
-  normalBtn.textContent = shellNames.normal;
-  normalBtn.addEventListener("click", () => {
-    selectedShell = null;
-    updateShellInventory();
+function updatePalette() {
+  const remaining = getShipsToPlace(state.placedShips);
+  const options = shipPalette.querySelectorAll(".ship-option");
+  options.forEach((opt) => {
+    const size = Number(opt.dataset.size);
+    const countRemaining = remaining.filter((s) => s === size).length;
+    const isPlaced = countRemaining === 0;
+    if (isPlaced) {
+      opt.classList.add("placed");
+    } else {
+      opt.classList.remove("placed");
+    }
+    if (size === state.selectedShipSize && !isPlaced) {
+      opt.style.borderColor = "#00d4ff";
+    } else {
+      opt.style.borderColor = "";
+    }
   });
-  shellInventory.appendChild(normalBtn);
-  const counts = {};
-  for (const s of inventory)
-    counts[s] = (counts[s] || 0) + 1;
-  for (const type of ["cross", "multi", "nuke"]) {
-    const count = counts[type] || 0;
-    const btn = document.createElement("button");
-    btn.className = `shell-btn shell-${type} ${selectedShell === type ? "selected" : ""}`;
-    btn.textContent = `${shellNames[type]} (${count})`;
-    btn.disabled = count === 0;
-    btn.addEventListener("click", () => {
-      selectedShell = selectedShell === type ? null : type;
-      updateShellInventory();
-    });
-    shellInventory.appendChild(btn);
+}
+function onPlacementCellHover(x, y) {
+  clearPlacementPreview();
+  const coords = getPlacementCoords(x, y, state.selectedShipSize, state.selectedShipHorizontal);
+  if (!coords) {
+    state.placementBoardCells[y][x].classList.add("placing-invalid");
+    return;
+  }
+  const valid = isPlacementValid(coords, state.placedShips);
+  for (const c of coords) {
+    state.placementBoardCells[c.y][c.x].classList.add(valid ? "placing-valid" : "placing-invalid");
   }
 }
+function clearPlacementPreview() {
+  for (let y = 0;y < BOARD_SIZE; y++) {
+    for (let x = 0;x < BOARD_SIZE; x++) {
+      state.placementBoardCells[y][x].classList.remove("placing-valid", "placing-invalid");
+    }
+  }
+}
+function onPlacementCellClick(x, y) {
+  if (state.placedShips.length >= SHIP_SIZES.length)
+    return;
+  const coords = getPlacementCoords(x, y, state.selectedShipSize, state.selectedShipHorizontal);
+  if (!coords || !isPlacementValid(coords, state.placedShips))
+    return;
+  const ship = {
+    id: `ship-${state.placedShips.length}`,
+    size: state.selectedShipSize,
+    coords: coords.map((c) => ({ ...c })),
+    hits: [],
+    sunk: false
+  };
+  state.placedShips.push(ship);
+  for (const c of coords) {
+    state.placementBoardCells[c.y][c.x].classList.add("ship");
+  }
+  updatePalette();
+  const remaining = getShipsToPlace(state.placedShips);
+  if (remaining.length > 0) {
+    state.selectedShipSize = remaining[0];
+  }
+  updatePalette();
+}
+function init2() {
+  shipPalette.addEventListener("click", (e) => {
+    const option = e.target.closest(".ship-option");
+    if (!option)
+      return;
+    if (option.classList.contains("placed"))
+      return;
+    state.selectedShipSize = Number(option.dataset.size);
+    updatePalette();
+  });
+  btnRotate.addEventListener("click", () => {
+    state.selectedShipHorizontal = !state.selectedShipHorizontal;
+  });
+  btnRandom.addEventListener("click", () => {
+    state.placedShips = generateRandomShips();
+    for (let y = 0;y < BOARD_SIZE; y++) {
+      for (let x = 0;x < BOARD_SIZE; x++) {
+        state.placementBoardCells[y][x].classList.remove("ship");
+      }
+    }
+    for (const ship of state.placedShips) {
+      for (const c of ship.coords) {
+        state.placementBoardCells[c.y][c.x].classList.add("ship");
+      }
+    }
+    updatePalette();
+  });
+  btnConfirm.addEventListener("click", () => {
+    if (state.placedShips.length !== SHIP_SIZES.length) {
+      alert(`请摆放全部${SHIP_SIZES.length}艘舰船`);
+      return;
+    }
+    send({ type: "PLACE_SHIPS", ships: state.placedShips });
+    state.myShips = state.placedShips.map((s) => ({ ...s, coords: s.coords.map((c) => ({ ...c })) }));
+  });
+}
+
+// client/core/shells.ts
 function getShellPreviewCoords(shellType, x, y) {
   const coords = [];
   if (shellType === "cross") {
     const dirs = [{ x: 0, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }];
     for (const d of dirs) {
-      const cx = x + d.x, cy = y + d.y;
+      const cx = x + d.x;
+      const cy = y + d.y;
       if (cx >= 0 && cx < BOARD_SIZE && cy >= 0 && cy < BOARD_SIZE)
         coords.push({ x: cx, y: cy });
     }
@@ -482,13 +401,88 @@ function getShellPreviewCoords(shellType, x, y) {
   }
   return coords;
 }
+
+// client/screens/battle.ts
+function initBoards() {
+  myBoard.innerHTML = "";
+  state.myBoardCells.length = 0;
+  state.myBoardHits.clear();
+  state.myBoardMisses.clear();
+  for (let y = 0;y < BOARD_SIZE; y++) {
+    const row = [];
+    for (let x = 0;x < BOARD_SIZE; x++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      if (state.myShips.some((s) => s.coords.some((c) => c.x === x && c.y === y))) {
+        cell.classList.add("ship");
+      }
+      myBoard.appendChild(cell);
+      row.push(cell);
+    }
+    state.myBoardCells.push(row);
+  }
+  enemyBoard.innerHTML = "";
+  state.enemyBoardCells.length = 0;
+  for (let y = 0;y < BOARD_SIZE; y++) {
+    state.enemyBoardState[y].fill("unknown");
+    const row = [];
+    for (let x = 0;x < BOARD_SIZE; x++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.dataset.x = String(x);
+      cell.dataset.y = String(y);
+      cell.addEventListener("click", () => onEnemyCellClick(x, y));
+      cell.addEventListener("mouseenter", () => onEnemyCellHover(x, y));
+      cell.addEventListener("mouseleave", () => clearShellPreview());
+      enemyBoard.appendChild(cell);
+      row.push(cell);
+    }
+    state.enemyBoardCells.push(row);
+  }
+  updateShellInventory();
+}
+function updateTurnIndicator() {
+  if (state.isMyTurn) {
+    turnIndicator.textContent = "你的回合 ⚔️";
+    turnIndicator.classList.remove("waiting");
+  } else {
+    turnIndicator.textContent = "对手回合 ⏳";
+    turnIndicator.classList.add("waiting");
+  }
+}
+function updateShellInventory() {
+  shellInventory.innerHTML = "";
+  const normalBtn = document.createElement("button");
+  normalBtn.className = `shell-btn shell-normal ${state.selectedShell === null ? "selected" : ""}`;
+  normalBtn.textContent = SHELL_NAMES.normal;
+  normalBtn.addEventListener("click", () => {
+    state.selectedShell = null;
+    updateShellInventory();
+  });
+  shellInventory.appendChild(normalBtn);
+  const counts = {};
+  for (const s of state.inventory)
+    counts[s] = (counts[s] || 0) + 1;
+  for (const type of ["cross", "multi", "nuke"]) {
+    const count = counts[type] || 0;
+    const btn = document.createElement("button");
+    btn.className = `shell-btn shell-${type} ${state.selectedShell === type ? "selected" : ""}`;
+    btn.textContent = `${SHELL_NAMES[type]} (${count})`;
+    btn.disabled = count === 0;
+    btn.addEventListener("click", () => {
+      state.selectedShell = state.selectedShell === type ? null : type;
+      updateShellInventory();
+    });
+    shellInventory.appendChild(btn);
+  }
+}
 function onEnemyCellHover(x, y) {
   clearShellPreview();
-  if (!selectedShell)
+  if (!state.selectedShell)
     return;
-  const coords = getShellPreviewCoords(selectedShell, x, y);
+  const coords = getShellPreviewCoords(state.selectedShell, x, y);
   for (const c of coords) {
-    const cell = enemyBoardCells[c.y][c.x];
+    const cell = state.enemyBoardCells[c.y][c.x];
     if (!cell.classList.contains("hit") && !cell.classList.contains("miss")) {
       cell.classList.add("shell-preview");
     }
@@ -497,79 +491,79 @@ function onEnemyCellHover(x, y) {
 function clearShellPreview() {
   for (let y = 0;y < BOARD_SIZE; y++) {
     for (let x = 0;x < BOARD_SIZE; x++) {
-      enemyBoardCells[y][x].classList.remove("shell-preview");
+      state.enemyBoardCells[y][x].classList.remove("shell-preview");
     }
   }
 }
 function onEnemyCellClick(x, y) {
-  if (!isMyTurn)
+  if (!state.isMyTurn)
     return;
-  if (enemyBoardState[y][x] !== "unknown" && enemyBoardState[y][x] !== "item")
+  if (state.enemyBoardState[y][x] !== "unknown" && state.enemyBoardState[y][x] !== "item")
     return;
-  if (selectedShell) {
-    const idx = inventory.indexOf(selectedShell);
+  if (state.selectedShell) {
+    const idx = state.inventory.indexOf(state.selectedShell);
     if (idx !== -1) {
-      inventory.splice(idx, 1);
+      state.inventory.splice(idx, 1);
       updateShellInventory();
     }
-    send({ type: "USE_SHELL", shellType: selectedShell, x, y });
-    selectedShell = null;
+    send({ type: "USE_SHELL", shellType: state.selectedShell, x, y });
+    state.selectedShell = null;
   } else {
     send({ type: "FIRE", x, y });
   }
 }
 function handleFireResult(msg) {
   const key = `${msg.x},${msg.y}`;
-  if (msg.shooter === myId) {
-    enemyBoardState[msg.y][msg.x] = msg.result;
-    const cell = enemyBoardCells[msg.y][msg.x];
+  if (msg.shooter === state.myId) {
+    state.enemyBoardState[msg.y][msg.x] = msg.result;
+    const cell = state.enemyBoardCells[msg.y][msg.x];
     cell.classList.remove("item");
     cell.classList.add(msg.result);
     if (msg.shipSunk) {
       for (const c of msg.shipSunk.coords) {
-        enemyBoardCells[c.y][c.x].classList.add("sunk");
+        state.enemyBoardCells[c.y][c.x].classList.add("sunk");
       }
       showToast(`击沉敌方 ${msg.shipSunk.size} 格战舰！`, "success");
     }
   } else {
-    const cell = myBoardCells[msg.y][msg.x];
+    const cell = state.myBoardCells[msg.y][msg.x];
     if (msg.result === "hit") {
-      myBoardHits.add(key);
+      state.myBoardHits.add(key);
       cell.classList.add("hit");
       if (msg.shipSunk) {
         for (const c of msg.shipSunk.coords) {
-          myBoardCells[c.y][c.x].classList.add("sunk");
+          state.myBoardCells[c.y][c.x].classList.add("sunk");
         }
         showToast(`你的 ${msg.shipSunk.size} 格战舰被击沉！`, "danger");
       }
     } else {
-      myBoardMisses.add(key);
+      state.myBoardMisses.add(key);
       cell.classList.add("miss");
     }
   }
 }
 function handleShellResult(msg) {
-  const isMyShell = msg.shooter === myId;
+  const isMyShell = msg.shooter === state.myId;
   const sunkShips = new Set;
   for (const target of msg.targets) {
     if (isMyShell) {
-      enemyBoardState[target.y][target.x] = target.result;
-      const cell = enemyBoardCells[target.y][target.x];
+      state.enemyBoardState[target.y][target.x] = target.result;
+      const cell = state.enemyBoardCells[target.y][target.x];
       cell.classList.remove("item");
       cell.classList.add(target.result);
       if (target.shipSunk) {
         for (const c of target.shipSunk.coords) {
-          enemyBoardCells[c.y][c.x].classList.add("sunk");
+          state.enemyBoardCells[c.y][c.x].classList.add("sunk");
         }
         sunkShips.add(target.shipSunk.size);
       }
     } else {
-      const cell = myBoardCells[target.y][target.x];
+      const cell = state.myBoardCells[target.y][target.x];
       if (target.result === "hit") {
         cell.classList.add("hit");
         if (target.shipSunk) {
           for (const c of target.shipSunk.coords) {
-            myBoardCells[c.y][c.x].classList.add("sunk");
+            state.myBoardCells[c.y][c.x].classList.add("sunk");
           }
           sunkShips.add(target.shipSunk.size);
         }
@@ -588,15 +582,17 @@ function handleShellResult(msg) {
 }
 function handleItemSpawned(positions) {
   for (const pos of positions) {
-    if (pos.playerId !== myId) {
-      if (enemyBoardState[pos.y][pos.x] === "unknown") {
-        enemyBoardState[pos.y][pos.x] = "item";
-        enemyBoardCells[pos.y][pos.x].classList.add("item");
+    if (pos.playerId !== state.myId) {
+      if (state.enemyBoardState[pos.y][pos.x] === "unknown") {
+        state.enemyBoardState[pos.y][pos.x] = "item";
+        state.enemyBoardCells[pos.y][pos.x].classList.add("item");
       }
     }
   }
 }
-function showGameOverModal(isWinner, scores, revealShips) {
+
+// client/screens/gameover.ts
+function showModal(isWinner, scores, revealShips) {
   scoreDisplay.textContent = `${scores[0]} : ${scores[1]}`;
   modalTitle.textContent = isWinner ? "胜利!" : "失败!";
   modalTitle.className = isWinner ? "win" : "lose";
@@ -604,8 +600,8 @@ function showGameOverModal(isWinner, scores, revealShips) {
   gameOverModal.classList.remove("hidden");
   if (revealShips) {
     for (const rs of revealShips) {
-      const isMyShip = rs.playerId === myId;
-      const boardCells = isMyShip ? myBoardCells : enemyBoardCells;
+      const isMyShip = rs.playerId === state.myId;
+      const boardCells = isMyShip ? state.myBoardCells : state.enemyBoardCells;
       for (const ship of rs.ships) {
         for (const c of ship.coords) {
           const cell = boardCells[c.y][c.x];
@@ -617,28 +613,82 @@ function showGameOverModal(isWinner, scores, revealShips) {
     }
   }
 }
-btnModalRestart.addEventListener("click", () => {
-  send({ type: "PLAY_AGAIN" });
-});
-btnModalExit.addEventListener("click", () => {
-  send({ type: "LEAVE_ROOM" });
-  if (ws)
-    ws.close();
-  location.reload();
-});
-function resetGameState() {
-  isMyTurn = false;
-  selectedShell = null;
-  selectedShipSize = 5;
-  selectedShipHorizontal = true;
-  placedShips = [];
-  inventory = [];
-  myShips = [];
-  myBoardHits.clear();
-  myBoardMisses.clear();
-  for (let y = 0;y < BOARD_SIZE; y++) {
-    enemyBoardState[y].fill("unknown");
-  }
+function init3() {
+  btnModalRestart.addEventListener("click", () => {
+    send({ type: "PLAY_AGAIN" });
+  });
+  btnModalExit.addEventListener("click", () => {
+    send({ type: "LEAVE_ROOM" });
+    closeConnection();
+    location.reload();
+  });
+}
+function hideModal() {
   gameOverModal.classList.add("hidden");
 }
-connect();
+
+// client/main.ts
+function handleServerMessage(msg) {
+  switch (msg.type) {
+    case "ROOM_CREATED":
+      state.roomId = msg.roomId;
+      showRoomCreated(msg.roomId);
+      break;
+    case "PLAYER_ASSIGNED":
+      state.myId = msg.playerId;
+      break;
+    case "ROOM_STATE":
+      state.roomId = msg.roomId;
+      updatePlayerList(msg.players);
+      if (msg.phase === "placement" && state.currentPhase === "lobby") {
+        showScreen("placement");
+        initBoard();
+        updatePalette();
+      }
+      break;
+    case "GAME_START":
+      state.isMyTurn = msg.firstTurn === state.myId;
+      showScreen("battle");
+      initBoards();
+      updateTurnIndicator();
+      updateShellInventory();
+      break;
+    case "FIRE_RESULT":
+      handleFireResult(msg);
+      break;
+    case "SHELL_RESULT":
+      handleShellResult(msg);
+      break;
+    case "TURN_CHANGE":
+      state.isMyTurn = msg.currentTurn === state.myId;
+      updateTurnIndicator();
+      break;
+    case "ITEM_SPAWNED":
+      handleItemSpawned(msg.positions);
+      break;
+    case "INVENTORY_UPDATE":
+      state.inventory = msg.shells;
+      updateShellInventory();
+      break;
+    case "GAME_OVER":
+      showModal(msg.winner === state.myId, msg.scores, msg.revealShips);
+      break;
+    case "RESTART_READY":
+      resetGameState();
+      hideModal();
+      showScreen("placement");
+      initBoard();
+      updatePalette();
+      break;
+    case "OPPONENT_LEFT":
+      alert("对手已离开");
+      break;
+    case "ERROR":
+      console.error("Server error:", msg.message);
+      break;
+  }
+}
+init();
+init2();
+init3();
+initWebSocket(handleServerMessage);

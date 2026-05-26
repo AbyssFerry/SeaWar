@@ -4,7 +4,10 @@
   "scripts": {
     "dev": "bun --watch server.ts",
     "start": "bun server.ts",
-    "build": "bun build ./client/main.ts --outfile ./public/client.js"
+    "build": "bun run build:client",
+    "build:client": "bun build ./client/main.ts --outfile ./public/client.js",
+    "build:exe": "bun build ./server.ts --compile --target=bun-windows-x64 --outfile ./release/SeaWar.exe --windows-title SeaWar --windows-version 1.0.0.0 --windows-description \"SeaWar game server\"",
+    "build:release": "bun run build:client && bun run build:exe && powershell -NoProfile -ExecutionPolicy Bypass -Command \"Compress-Archive -Path .\\release\\SeaWar.exe -DestinationPath .\\release\\SeaWar-1.0.0-windows-x64.zip -Force\""
   },
   "devDependencies": {
     "@types/bun": "latest",
