@@ -17,7 +17,12 @@ export function showRoomCreated(roomId: string) {
   dom.roomInfo.classList.remove('hidden');
 }
 
+let initialized = false;
+
 export function init() {
+  if (initialized) return;
+  initialized = true;
+
   dom.btnCreateRoom.addEventListener('click', () => {
     const name = dom.playerNameInput.value.trim();
     if (!name) {
@@ -39,5 +44,40 @@ export function init() {
       return;
     }
     send({ type: 'JOIN_ROOM', roomId: rid, playerName: name });
+  });
+
+  // Tournament buttons
+  const btnCreateTournament = document.getElementById('btn-create-tournament') as HTMLButtonElement;
+  const btnJoinTournament = document.getElementById('btn-join-tournament') as HTMLButtonElement;
+  const codeInput = document.getElementById('tournament-code-input') as HTMLInputElement;
+  const modal = document.getElementById('tournament-config-modal') as HTMLDivElement;
+  const confirmBtn = document.getElementById('btn-tournament-config-confirm') as HTMLButtonElement;
+  const cancelBtn = document.getElementById('btn-tournament-config-cancel') as HTMLButtonElement;
+  const nameInput = document.getElementById('tournament-name-input') as HTMLInputElement;
+  const gamesSelect = document.getElementById('tournament-games-select') as HTMLSelectElement;
+
+  btnCreateTournament?.addEventListener('click', () => {
+    modal?.classList.remove('hidden');
+  });
+
+  cancelBtn?.addEventListener('click', () => {
+    modal?.classList.add('hidden');
+  });
+
+  confirmBtn?.addEventListener('click', () => {
+    const name = nameInput?.value.trim() || '我的锦标赛';
+    const gamesToWin = parseInt(gamesSelect?.value ?? '3');
+    send({ type: 'CREATE_TOURNAMENT', name, gamesToWin });
+    modal?.classList.add('hidden');
+  });
+
+  btnJoinTournament?.addEventListener('click', () => {
+    const code = codeInput?.value.trim() ?? '';
+    if (code.length !== 6) {
+      alert('请输入6位房间码');
+      return;
+    }
+    const playerName = dom.playerNameInput.value.trim() || 'Player';
+    send({ type: 'JOIN_TOURNAMENT', code, playerName });
   });
 }
