@@ -2,6 +2,9 @@ export const screens = {
   lobby: document.getElementById('lobby')!,
   placement: document.getElementById('placement')!,
   battle: document.getElementById('battle')!,
+  tournamentMenu: document.getElementById('tournament-menu')!,
+  tournamentLobby: document.getElementById('tournament-lobby')!,
+  tournamentMain: document.getElementById('tournament-main')!,
 };
 
 export const playerNameInput = document.getElementById('playerName') as HTMLInputElement;
