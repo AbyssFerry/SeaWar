@@ -55,6 +55,15 @@ describe('tournament handler', () => {
     });
   });
 
+  it('rejects tournament creation without a player name', () => {
+    const host = createWs();
+
+    send(host, { type: 'CREATE_TOURNAMENT', name: 'Cup', playerName: '   ', gamesToWin: 1 });
+
+    expect(host.sent.some((m) => m.type === 'TOURNAMENT_CREATED')).toBe(false);
+    expect(latest(host, 'ERROR').message).toBe('请输入你的名字');
+  });
+
   it('broadcasts placement state to both players after a tournament match room fills', () => {
     const host = createWs();
     const player2 = createWs();

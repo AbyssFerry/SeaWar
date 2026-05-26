@@ -711,17 +711,6 @@ body {
   margin-top: 4px;
 }
 
-#tournament-battle-info {
-  background: #f1c40f;
-  color: #0f0f23;
-  padding: 8px;
-  text-align: center;
-  font-weight: 600;
-  font-size: 14px;
-  border-radius: 8px;
-  margin-bottom: 12px;
-}
-
 #tournament-status-bar {
   padding: 16px;
   text-align: center;

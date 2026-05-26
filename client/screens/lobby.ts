@@ -69,7 +69,11 @@ export function init() {
 
   confirmBtn?.addEventListener('click', () => {
     const name = nameInput?.value.trim() || '我的锦标赛';
-    const playerName = dom.playerNameInput.value.trim() || 'Player';
+    const playerName = dom.playerNameInput.value.trim();
+    if (!playerName) {
+      alert('请输入你的名字');
+      return;
+    }
     const gamesToWin = parseInt(gamesSelect?.value ?? '3');
     send({ type: 'CREATE_TOURNAMENT', name, playerName, gamesToWin });
     modal?.classList.add('hidden');
@@ -77,11 +81,15 @@ export function init() {
 
   btnJoinTournament?.addEventListener('click', () => {
     const code = codeInput?.value.trim() ?? '';
+    const playerName = dom.playerNameInput.value.trim();
+    if (!playerName) {
+      alert('请输入你的名字');
+      return;
+    }
     if (code.length !== 6) {
       alert('请输入6位房间码');
       return;
     }
-    const playerName = dom.playerNameInput.value.trim() || 'Player';
     send({ type: 'JOIN_TOURNAMENT', code, playerName });
   });
 }

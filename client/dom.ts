@@ -20,6 +20,7 @@ export const placementBoard = document.getElementById('placementBoard')!;
 export const shipPalette = document.getElementById('shipPalette')!;
 export const btnRotate = document.getElementById('btnRotate') as HTMLButtonElement;
 export const btnRandom = document.getElementById('btnRandom') as HTMLButtonElement;
+export const btnClearPlacement = document.getElementById('btnClearPlacement') as HTMLButtonElement;
 export const btnConfirm = document.getElementById('btnConfirm') as HTMLButtonElement;
 
 export const myBoard = document.getElementById('myBoard')!;

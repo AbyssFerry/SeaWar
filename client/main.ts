@@ -42,7 +42,6 @@ function handleServerMessage(msg: ServerMessage) {
       battle.initBoards();
       battle.updateTurnIndicator();
       battle.updateShellInventory();
-      battle.showTournamentInfo(state.isInTournamentMatch);
       break;
 
     case 'FIRE_RESULT':
@@ -73,7 +72,6 @@ function handleServerMessage(msg: ServerMessage) {
         if (msg.matchComplete === false) {
           break;
         }
-        battle.showTournamentInfo(false);
         setTimeout(() => {
           tournamentMain.showTournamentMain('', state.tournamentCode);
         }, 2000);

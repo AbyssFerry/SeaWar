@@ -81,14 +81,26 @@ export function handleMatchRoomMessage(ws: ServerWebSocket, message: ClientMessa
 }
 
 function handleCreateTournament(ws: ServerWebSocket, name: string, playerName: string, gamesToWin: number): void {
-  const { tournament, participant } = createTournament(name, gamesToWin, ws, playerName || 'Player');
+  const normalizedPlayerName = playerName.trim();
+  if (!normalizedPlayerName) {
+    send(ws, { type: 'ERROR', message: '请输入你的名字' });
+    return;
+  }
+
+  const { tournament, participant } = createTournament(name, gamesToWin, ws, normalizedPlayerName);
   send(ws, { type: 'TOURNAMENT_CREATED', code: tournament.code });
   send(ws, { type: 'PLAYER_ASSIGNED', playerId: participant.id });
   sendTournamentState(tournament);
 }
 
 function handleJoinTournament(ws: ServerWebSocket, code: string, playerName: string): void {
-  const result = joinTournament(code, ws, playerName);
+  const normalizedPlayerName = playerName.trim();
+  if (!normalizedPlayerName) {
+    send(ws, { type: 'ERROR', message: '请输入你的名字' });
+    return;
+  }
+
+  const result = joinTournament(code, ws, normalizedPlayerName);
   if (!result) {
     send(ws, { type: 'ERROR', message: 'Tournament not found or already started' });
     return;

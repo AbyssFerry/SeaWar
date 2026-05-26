@@ -111,6 +111,7 @@ var placementBoard = document.getElementById("placementBoard");
 var shipPalette = document.getElementById("shipPalette");
 var btnRotate = document.getElementById("btnRotate");
 var btnRandom = document.getElementById("btnRandom");
+var btnClearPlacement = document.getElementById("btnClearPlacement");
 var btnConfirm = document.getElementById("btnConfirm");
 var myBoard = document.getElementById("myBoard");
 var enemyBoard = document.getElementById("enemyBoard");
@@ -213,18 +214,26 @@ function init() {
   });
   confirmBtn?.addEventListener("click", () => {
     const name = nameInput?.value.trim() || "我的锦标赛";
-    const playerName = playerNameInput.value.trim() || "Player";
+    const playerName = playerNameInput.value.trim();
+    if (!playerName) {
+      alert("请输入你的名字");
+      return;
+    }
     const gamesToWin = parseInt(gamesSelect?.value ?? "3");
     send({ type: "CREATE_TOURNAMENT", name, playerName, gamesToWin });
     modal?.classList.add("hidden");
   });
   btnJoinTournament?.addEventListener("click", () => {
     const code = codeInput?.value.trim() ?? "";
+    const playerName = playerNameInput.value.trim();
+    if (!playerName) {
+      alert("请输入你的名字");
+      return;
+    }
     if (code.length !== 6) {
       alert("请输入6位房间码");
       return;
     }
-    const playerName = playerNameInput.value.trim() || "Player";
     send({ type: "JOIN_TOURNAMENT", code, playerName });
   });
 }
@@ -378,6 +387,30 @@ function clearPlacementPreview() {
     }
   }
 }
+function clearPlacedShips() {
+  state.placedShips = [];
+  state.selectedShipSize = SHIP_SIZES[0];
+  clearPlacementPreview();
+  for (let y = 0;y < BOARD_SIZE; y++) {
+    for (let x = 0;x < BOARD_SIZE; x++) {
+      state.placementBoardCells[y][x].classList.remove("ship");
+    }
+  }
+  updatePalette();
+}
+function renderPlacedShips() {
+  for (let y = 0;y < BOARD_SIZE; y++) {
+    for (let x = 0;x < BOARD_SIZE; x++) {
+      state.placementBoardCells[y][x].classList.remove("ship");
+    }
+  }
+  for (const ship of state.placedShips) {
+    for (const c of ship.coords) {
+      state.placementBoardCells[c.y][c.x].classList.add("ship");
+    }
+  }
+  updatePalette();
+}
 function onPlacementCellClick(x, y) {
   if (state.placedShips.length >= SHIP_SIZES.length)
     return;
@@ -417,17 +450,10 @@ function init2() {
   });
   btnRandom.addEventListener("click", () => {
     state.placedShips = generateRandomShips();
-    for (let y = 0;y < BOARD_SIZE; y++) {
-      for (let x = 0;x < BOARD_SIZE; x++) {
-        state.placementBoardCells[y][x].classList.remove("ship");
-      }
-    }
-    for (const ship of state.placedShips) {
-      for (const c of ship.coords) {
-        state.placementBoardCells[c.y][c.x].classList.add("ship");
-      }
-    }
-    updatePalette();
+    renderPlacedShips();
+  });
+  btnClearPlacement.addEventListener("click", () => {
+    clearPlacedShips();
   });
   btnConfirm.addEventListener("click", () => {
     if (state.placedShips.length !== SHIP_SIZES.length) {
@@ -657,12 +683,6 @@ function handleItemSpawned(positions) {
     }
   }
 }
-function showTournamentInfo(show) {
-  const infoBar = document.getElementById("tournament-battle-info");
-  if (infoBar) {
-    infoBar.classList.toggle("hidden", !show);
-  }
-}
 function updateScore(scores) {
   scoreDisplay.textContent = `${scores[0]} : ${scores[1]}`;
 }
@@ -855,7 +875,6 @@ function handleServerMessage(msg) {
       initBoards();
       updateTurnIndicator();
       updateShellInventory();
-      showTournamentInfo(state.isInTournamentMatch);
       break;
     case "FIRE_RESULT":
       handleFireResult(msg);
@@ -880,7 +899,6 @@ function handleServerMessage(msg) {
         if (msg.matchComplete === false) {
           break;
         }
-        showTournamentInfo(false);
         setTimeout(() => {
           showTournamentMain("", state.tournamentCode);
         }, 2000);
