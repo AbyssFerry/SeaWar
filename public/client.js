@@ -26,12 +26,12 @@ var state = {
   enemyBoardState: Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill("unknown")),
   myBoardHits: new Set,
   myBoardMisses: new Set,
+  tournamentName: "",
   tournamentCode: "",
   tournamentPhase: "",
   tournamentHostId: "",
   isInTournamentMatch: false,
-  currentMatchId: "",
-  isSpectating: false
+  currentMatchId: ""
 };
 function resetGameState() {
   state.isMyTurn = false;
@@ -48,9 +48,9 @@ function resetGameState() {
   }
   state.isInTournamentMatch = false;
   state.currentMatchId = "";
-  state.isSpectating = false;
 }
 function resetTournamentState() {
+  state.tournamentName = "";
   state.tournamentCode = "";
   state.tournamentPhase = "";
   state.tournamentHostId = "";
@@ -180,6 +180,7 @@ function init() {
       alert("请输入你的名字");
       return;
     }
+    resetTournamentState();
     send({ type: "CREATE_ROOM", playerName: name });
   });
   btnJoinRoom.addEventListener("click", () => {
@@ -193,6 +194,7 @@ function init() {
       alert("请输入房间号");
       return;
     }
+    resetTournamentState();
     send({ type: "JOIN_ROOM", roomId: rid, playerName: name });
   });
   const btnCreateTournament = document.getElementById("btn-create-tournament");
@@ -211,8 +213,9 @@ function init() {
   });
   confirmBtn?.addEventListener("click", () => {
     const name = nameInput?.value.trim() || "我的锦标赛";
+    const playerName = playerNameInput.value.trim() || "Player";
     const gamesToWin = parseInt(gamesSelect?.value ?? "3");
-    send({ type: "CREATE_TOURNAMENT", name, gamesToWin });
+    send({ type: "CREATE_TOURNAMENT", name, playerName, gamesToWin });
     modal?.classList.add("hidden");
   });
   btnJoinTournament?.addEventListener("click", () => {
@@ -660,6 +663,9 @@ function showTournamentInfo(show) {
     infoBar.classList.toggle("hidden", !show);
   }
 }
+function updateScore(scores) {
+  scoreDisplay.textContent = `${scores[0]} : ${scores[1]}`;
+}
 
 // client/screens/gameover.ts
 function showModal(isWinner, scores, revealShips) {
@@ -773,29 +779,14 @@ function updateSchedule(matches, round) {
   for (const match of matches) {
     const div = document.createElement("div");
     div.className = `match-card ${match.status}`;
-    const isMyMatch = match.participantA === state.myId || match.participantB === state.myId;
-    const canSpectate = match.status === "ongoing" && !isMyMatch;
     let html = `<div class="match-players">${match.participantAName || "???"} vs ${match.participantBName || "???"}</div>`;
     html += `<div class="match-status">${getStatusText(match)}</div>`;
     if (match.status === "completed") {
       html += `<div class="match-result">${match.winsA} - ${match.winsB}</div>`;
     }
-    if (canSpectate) {
-      html += `<button class="btn-spectate" data-match-id="${match.id}">观战</button>`;
-    }
     div.innerHTML = html;
     listEl.appendChild(div);
   }
-  listEl.querySelectorAll(".btn-spectate").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const matchId = e.target.dataset.matchId;
-      if (matchId) {
-        send({ type: "SPECTATE_MATCH", matchId });
-        state.isSpectating = true;
-        state.currentMatchId = matchId;
-      }
-    });
-  });
 }
 function getStatusText(match) {
   if (match.status === "pending")
@@ -809,22 +800,14 @@ function getStatusText(match) {
 function showMatchAssigned(matchId) {
   state.isInTournamentMatch = true;
   state.currentMatchId = matchId;
-  state.isSpectating = false;
   const statusText = document.getElementById("tournament-status-text");
   if (statusText)
     statusText.textContent = "你已分配到对战，正在进入...";
   send({ type: "ENTER_MATCH", matchId });
 }
-function showForceEnterMatch(matchId) {
-  if (state.isSpectating) {
-    send({ type: "STOP_SPECTATING" });
-  }
-  showMatchAssigned(matchId);
-}
 function handleMatchEnded(matchId) {
   state.isInTournamentMatch = false;
   state.currentMatchId = "";
-  state.isSpectating = false;
   const statusText = document.getElementById("tournament-status-text");
   if (statusText)
     statusText.textContent = "对战结束，等待下一轮...";
@@ -859,21 +842,20 @@ function handleServerMessage(msg) {
     case "ROOM_STATE":
       state.roomId = msg.roomId;
       updatePlayerList(msg.players);
-      if (msg.phase === "placement" && state.currentPhase === "lobby") {
+      if (msg.phase === "placement" && state.currentPhase !== "placement" && state.currentPhase !== "battle") {
         showScreen("placement");
         initBoard();
         updatePalette();
       }
       break;
     case "GAME_START":
+      state.isInTournamentMatch = msg.isTournamentMatch === true;
       state.isMyTurn = msg.firstTurn === state.myId;
       showScreen("battle");
       initBoards();
       updateTurnIndicator();
       updateShellInventory();
-      if (state.isInTournamentMatch) {
-        showTournamentInfo(true);
-      }
+      showTournamentInfo(state.isInTournamentMatch);
       break;
     case "FIRE_RESULT":
       handleFireResult(msg);
@@ -894,6 +876,10 @@ function handleServerMessage(msg) {
       break;
     case "GAME_OVER":
       if (state.isInTournamentMatch) {
+        updateScore(msg.scores);
+        if (msg.matchComplete === false) {
+          break;
+        }
         showTournamentInfo(false);
         setTimeout(() => {
           showTournamentMain("", state.tournamentCode);
@@ -903,7 +889,13 @@ function handleServerMessage(msg) {
       }
       break;
     case "RESTART_READY":
+      const isTournamentRestart = msg.isTournamentMatch === true;
+      const currentMatchId = state.currentMatchId;
       resetGameState();
+      if (isTournamentRestart) {
+        state.isInTournamentMatch = true;
+        state.currentMatchId = currentMatchId;
+      }
       hideModal();
       showScreen("placement");
       initBoard();
@@ -916,6 +908,8 @@ function handleServerMessage(msg) {
       state.tournamentCode = msg.code;
       break;
     case "TOURNAMENT_STATE":
+      state.tournamentName = msg.name;
+      state.tournamentCode = msg.code;
       state.tournamentPhase = msg.phase;
       state.tournamentHostId = msg.hostId;
       if (msg.phase === "lobby") {
@@ -924,7 +918,7 @@ function handleServerMessage(msg) {
       break;
     case "TOURNAMENT_STARTED":
       state.tournamentPhase = "running";
-      showTournamentMain(msg.matches[0]?.name || "锦标赛", state.tournamentCode);
+      showTournamentMain(state.tournamentName || "锦标赛", state.tournamentCode);
       updateSchedule(msg.matches, 1);
       break;
     case "MATCH_ASSIGNED":
@@ -942,9 +936,6 @@ function handleServerMessage(msg) {
     case "TOURNAMENT_ENDED":
       state.tournamentPhase = "ended";
       showTournamentEnded(msg.rankings);
-      break;
-    case "FORCE_ENTER_MATCH":
-      showForceEnterMatch(msg.matchId);
       break;
     case "ERROR":
       console.error("Server error:", msg.message);

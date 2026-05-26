@@ -4,7 +4,13 @@ import type { Ship } from '../src/types';
 export const state = {
   myId: '',
   roomId: '',
-  currentPhase: 'lobby' as 'lobby' | 'placement' | 'battle',
+  currentPhase: 'lobby' as
+    | 'lobby'
+    | 'placement'
+    | 'battle'
+    | 'tournament-menu'
+    | 'tournament-lobby'
+    | 'tournament-main',
   isMyTurn: false,
   selectedShell: null as string | null,
   selectedShipSize: 5,
@@ -22,12 +28,12 @@ export const state = {
   myBoardMisses: new Set<string>(),
 
   // Tournament state
+  tournamentName: '',
   tournamentCode: '',
   tournamentPhase: '' as 'lobby' | 'running' | 'ended' | '',
   tournamentHostId: '',
   isInTournamentMatch: false,
   currentMatchId: '',
-  isSpectating: false,
 };
 
 export function resetGameState() {
@@ -45,10 +51,10 @@ export function resetGameState() {
   }
   state.isInTournamentMatch = false;
   state.currentMatchId = '';
-  state.isSpectating = false;
 }
 
 export function resetTournamentState() {
+  state.tournamentName = '';
   state.tournamentCode = '';
   state.tournamentPhase = '';
   state.tournamentHostId = '';

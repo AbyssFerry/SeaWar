@@ -3,7 +3,7 @@ import { ClientMessage, ServerMessage, Room, Player, RoomPhase, ShellType, START
 import { validateShipPlacement, generateRandomShips } from './ship-validator';
 import { fire, useShell, checkWin, placeShips, createBoard, shouldSpawnItem, spawnItem } from './game-logic';
 import { createRoom, joinRoom, getRoom, leaveRoom, broadcast, getOpponent, resetRoomForRestart } from './room-manager';
-import { handleTournamentMessage, handleMatchRoomMessage } from './tournament-handler';
+import { handleTournamentMessage, handleMatchRoomMessage, handleTournamentClose } from './tournament-handler';
 
 const wsToRoom = new WeakMap<ServerWebSocket, { room: Room; player: Player }>();
 
@@ -45,6 +45,7 @@ function checkGameStart(room: Room): void {
     const gameStart: ServerMessage = {
       type: 'GAME_START',
       firstTurn: room.currentTurn,
+      isTournamentMatch: false,
     };
     broadcast(room, gameStart);
     sendRoomState(room);
@@ -110,9 +111,11 @@ export function handleMessage(ws: ServerWebSocket, data: string): void {
 
   switch (message.type) {
     case 'CREATE_ROOM':
+      handleTournamentClose(ws);
       handleCreateRoom(ws, message.playerName);
       break;
     case 'JOIN_ROOM':
+      handleTournamentClose(ws);
       handleJoinRoom(ws, message.roomId, message.playerName);
       break;
     case 'LEAVE_ROOM':
@@ -427,4 +430,5 @@ function handlePlayAgain(ws: ServerWebSocket): void {
 
 export function handleClose(ws: ServerWebSocket): void {
   handleLeaveRoom(ws);
+  handleTournamentClose(ws);
 }

@@ -8,7 +8,6 @@ export type MatchRoom = {
   id: string;
   tournamentMatchId: string;
   players: [Player | null, Player | null];
-  spectators: Map<string, any>;
   phase: RoomPhase;
   currentTurn: string;
   turnCount: number;
@@ -20,7 +19,6 @@ export function createMatchRoom(matchRoomId: string, tournamentMatchId: string):
     id: matchRoomId,
     tournamentMatchId,
     players: [null, null],
-    spectators: new Map(),
     phase: 'lobby',
     currentTurn: '',
     turnCount: 0,
@@ -47,26 +45,12 @@ export function addPlayerToMatchRoom(
   return player;
 }
 
-export function addSpectator(room: MatchRoom, participantId: string, ws: any): void {
-  room.spectators.set(participantId, ws);
-}
-
-export function removeSpectator(room: MatchRoom, participantId: string): void {
-  room.spectators.delete(participantId);
-}
-
 export function broadcastMatchRoom(
   room: MatchRoom,
   message: object,
   excludePlayerId?: string
 ): void {
   broadcastToPlayers(room.players, message, excludePlayerId);
-  for (const [spectatorId, ws] of room.spectators) {
-    if (excludePlayerId && spectatorId === excludePlayerId) continue;
-    if (ws && ws.readyState === 1) {
-      ws.send(JSON.stringify(message));
-    }
-  }
 }
 
 export function getOpponentInMatch(room: MatchRoom, playerId: string): Player | null {
@@ -93,7 +77,11 @@ export function checkMatchGameStart(room: MatchRoom): void {
       }
     }
 
-    broadcastMatchRoom(room, { type: 'GAME_START', firstTurn: room.currentTurn });
+    broadcastMatchRoom(room, {
+      type: 'GAME_START',
+      firstTurn: room.currentTurn,
+      isTournamentMatch: true,
+    });
     broadcastMatchRoom(room, {
       type: 'ROOM_STATE',
       roomId: room.id,

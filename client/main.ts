@@ -24,7 +24,11 @@ function handleServerMessage(msg: ServerMessage) {
     case 'ROOM_STATE':
       state.roomId = msg.roomId;
       lobby.updatePlayerList(msg.players);
-      if (msg.phase === 'placement' && state.currentPhase === 'lobby') {
+      if (
+        msg.phase === 'placement' &&
+        state.currentPhase !== 'placement' &&
+        state.currentPhase !== 'battle'
+      ) {
         showScreen('placement');
         placement.initBoard();
         placement.updatePalette();
@@ -32,14 +36,13 @@ function handleServerMessage(msg: ServerMessage) {
       break;
 
     case 'GAME_START':
+      state.isInTournamentMatch = msg.isTournamentMatch === true;
       state.isMyTurn = msg.firstTurn === state.myId;
       showScreen('battle');
       battle.initBoards();
       battle.updateTurnIndicator();
       battle.updateShellInventory();
-      if (state.isInTournamentMatch) {
-        battle.showTournamentInfo(true);
-      }
+      battle.showTournamentInfo(state.isInTournamentMatch);
       break;
 
     case 'FIRE_RESULT':
@@ -66,6 +69,10 @@ function handleServerMessage(msg: ServerMessage) {
 
     case 'GAME_OVER':
       if (state.isInTournamentMatch) {
+        battle.updateScore(msg.scores);
+        if (msg.matchComplete === false) {
+          break;
+        }
         battle.showTournamentInfo(false);
         setTimeout(() => {
           tournamentMain.showTournamentMain('', state.tournamentCode);
@@ -76,7 +83,13 @@ function handleServerMessage(msg: ServerMessage) {
       break;
 
     case 'RESTART_READY':
+      const isTournamentRestart = msg.isTournamentMatch === true;
+      const currentMatchId = state.currentMatchId;
       resetGameState();
+      if (isTournamentRestart) {
+        state.isInTournamentMatch = true;
+        state.currentMatchId = currentMatchId;
+      }
       gameover.hideModal();
       showScreen('placement');
       placement.initBoard();
@@ -92,6 +105,8 @@ function handleServerMessage(msg: ServerMessage) {
       break;
 
     case 'TOURNAMENT_STATE':
+      state.tournamentName = msg.name;
+      state.tournamentCode = msg.code;
       state.tournamentPhase = msg.phase;
       state.tournamentHostId = msg.hostId;
       if (msg.phase === 'lobby') {
@@ -101,7 +116,7 @@ function handleServerMessage(msg: ServerMessage) {
 
     case 'TOURNAMENT_STARTED':
       state.tournamentPhase = 'running';
-      tournamentMain.showTournamentMain(msg.matches[0]?.name || '锦标赛', state.tournamentCode);
+      tournamentMain.showTournamentMain(state.tournamentName || '锦标赛', state.tournamentCode);
       tournamentMain.updateSchedule(msg.matches, 1);
       break;
 
@@ -124,10 +139,6 @@ function handleServerMessage(msg: ServerMessage) {
     case 'TOURNAMENT_ENDED':
       state.tournamentPhase = 'ended';
       tournamentMain.showTournamentEnded(msg.rankings);
-      break;
-
-    case 'FORCE_ENTER_MATCH':
-      tournamentMain.showForceEnterMatch(msg.matchId);
       break;
 
     case 'ERROR':

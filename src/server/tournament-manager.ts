@@ -88,8 +88,10 @@ export function leaveTournament(ws: any): void {
 
   // If host leaves and there are other participants, transfer host
   if (tournament.hostId === participant.id && tournament.participants.size > 0) {
-    const newHost = tournament.participants.values().next().value;
-    tournament.hostId = newHost.id;
+    const newHost = tournament.participants.values().next().value as TournamentParticipant | undefined;
+    if (newHost) {
+      tournament.hostId = newHost.id;
+    }
   }
 
   // If no participants left, delete tournament

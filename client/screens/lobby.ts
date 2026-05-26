@@ -1,5 +1,6 @@
 import { send } from '../ws';
 import * as dom from '../dom';
+import { resetTournamentState } from '../state';
 
 export function updatePlayerList(players: { id: string; name: string; ready: boolean }[]) {
   dom.playerList.innerHTML = '';
@@ -29,6 +30,7 @@ export function init() {
       alert('请输入你的名字');
       return;
     }
+    resetTournamentState();
     send({ type: 'CREATE_ROOM', playerName: name });
   });
 
@@ -43,6 +45,7 @@ export function init() {
       alert('请输入房间号');
       return;
     }
+    resetTournamentState();
     send({ type: 'JOIN_ROOM', roomId: rid, playerName: name });
   });
 
@@ -66,8 +69,9 @@ export function init() {
 
   confirmBtn?.addEventListener('click', () => {
     const name = nameInput?.value.trim() || '我的锦标赛';
+    const playerName = dom.playerNameInput.value.trim() || 'Player';
     const gamesToWin = parseInt(gamesSelect?.value ?? '3');
-    send({ type: 'CREATE_TOURNAMENT', name, gamesToWin });
+    send({ type: 'CREATE_TOURNAMENT', name, playerName, gamesToWin });
     modal?.classList.add('hidden');
   });
 

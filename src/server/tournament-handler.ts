@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from 'bun';
-import { ClientMessage, ServerMessage, ShellType } from '../types';
+import { ClientMessage, ServerMessage, ShellType, TournamentMatchSummary } from '../types';
 import {
   createTournament,
   joinTournament,
@@ -17,17 +17,16 @@ import {
 import {
   createMatchRoom,
   addPlayerToMatchRoom,
-  addSpectator,
-  removeSpectator,
   broadcastMatchRoom,
   getOpponentInMatch,
   checkMatchGameStart,
+  resetMatchRoom,
 } from './match-room';
 import { validateShipPlacement, generateRandomShips } from './ship-validator';
 import { fire, useShell, checkWin, placeShips } from './game-logic';
 
 const matchRooms = new Map<string, any>();
-const wsToMatchRoom = new WeakMap<ServerWebSocket, { room: any; playerId: string; isSpectator: boolean }>();
+const wsToMatchRoom = new WeakMap<ServerWebSocket, { room: any; playerId: string }>();
 
 function send(ws: ServerWebSocket, message: ServerMessage): void {
   if (ws.readyState === 1) {
@@ -39,7 +38,7 @@ function send(ws: ServerWebSocket, message: ServerMessage): void {
 export function handleTournamentMessage(ws: ServerWebSocket, message: ClientMessage): boolean {
   switch (message.type) {
     case 'CREATE_TOURNAMENT':
-      handleCreateTournament(ws, message.name, message.gamesToWin);
+      handleCreateTournament(ws, message.name, message.playerName, message.gamesToWin);
       return true;
     case 'JOIN_TOURNAMENT':
       handleJoinTournament(ws, message.code, message.playerName);
@@ -53,12 +52,6 @@ export function handleTournamentMessage(ws: ServerWebSocket, message: ClientMess
     case 'ENTER_MATCH':
       handleEnterMatch(ws, message.matchId);
       return true;
-    case 'SPECTATE_MATCH':
-      handleSpectateMatch(ws, message.matchId);
-      return true;
-    case 'STOP_SPECTATING':
-      handleStopSpectating(ws);
-      return true;
     default:
       return false;
   }
@@ -67,7 +60,7 @@ export function handleTournamentMessage(ws: ServerWebSocket, message: ClientMess
 // Match room game action handler
 export function handleMatchRoomMessage(ws: ServerWebSocket, message: ClientMessage): boolean {
   const context = wsToMatchRoom.get(ws);
-  if (!context || context.isSpectator) return false;
+  if (!context) return false;
 
   const { room, playerId } = context;
 
@@ -87,8 +80,8 @@ export function handleMatchRoomMessage(ws: ServerWebSocket, message: ClientMessa
   }
 }
 
-function handleCreateTournament(ws: ServerWebSocket, name: string, gamesToWin: number): void {
-  const { tournament, participant } = createTournament(name, gamesToWin, ws, 'Player');
+function handleCreateTournament(ws: ServerWebSocket, name: string, playerName: string, gamesToWin: number): void {
+  const { tournament, participant } = createTournament(name, gamesToWin, ws, playerName || 'Player');
   send(ws, { type: 'TOURNAMENT_CREATED', code: tournament.code });
   send(ws, { type: 'PLAYER_ASSIGNED', playerId: participant.id });
   sendTournamentState(tournament);
@@ -140,27 +133,34 @@ function handleStartTournament(ws: ServerWebSocket): void {
 
   startTournament(tournament);
 
-  const matchesPayload = tournament.matches.map((m: any) => ({
-    id: m.id,
-    round: m.round,
-    participantA: m.participantA,
-    participantB: m.participantB,
-    status: m.status,
-    winner: m.winner,
-    gamesToWin: m.gamesToWin,
-    winsA: m.winsA,
-    winsB: m.winsB,
-  }));
-
-  broadcastToTournament(tournament, { type: 'TOURNAMENT_STARTED', matches: matchesPayload });
-
   // Update match statuses to ongoing for round 1
   const currentMatches = getCurrentRoundMatches(tournament);
   for (const match of currentMatches) {
     match.status = 'ongoing';
   }
 
+  broadcastToTournament(tournament, {
+    type: 'TOURNAMENT_STARTED',
+    matches: createMatchesPayload(tournament),
+  });
+
   assignCurrentRoundMatches(tournament);
+}
+
+function createMatchesPayload(tournament: any): TournamentMatchSummary[] {
+  return tournament.matches.map((m: any) => ({
+    id: m.id,
+    round: m.round,
+    participantA: m.participantA,
+    participantB: m.participantB,
+    participantAName: tournament.participants.get(m.participantA)?.name ?? '???',
+    participantBName: tournament.participants.get(m.participantB)?.name ?? '???',
+    status: m.status,
+    winner: m.winner,
+    gamesToWin: m.gamesToWin,
+    winsA: m.winsA,
+    winsB: m.winsB,
+  }));
 }
 
 function assignCurrentRoundMatches(tournament: any): void {
@@ -208,57 +208,27 @@ function handleEnterMatch(ws: ServerWebSocket, matchId: string): void {
     (existingPlayer as any).ws = ws;
   }
 
-  wsToMatchRoom.set(ws, { room, playerId: participant.id, isSpectator: false });
+  wsToMatchRoom.set(ws, { room, playerId: participant.id });
 
   send(ws, { type: 'MATCH_STARTED', matchId });
-  send(ws, {
+
+  const roomState: ServerMessage = {
     type: 'ROOM_STATE',
     roomId: room.id,
     players: room.players
       .filter((p: any) => p !== null)
       .map((p: any) => ({ id: p.id, name: p.name, ready: p.ready })),
     phase: room.phase,
-  });
+  };
+  broadcastMatchRoom(room, roomState);
 
   if (room.phase === 'battle') {
-    send(ws, { type: 'GAME_START', firstTurn: room.currentTurn });
+    send(ws, { type: 'GAME_START', firstTurn: room.currentTurn, isTournamentMatch: true });
   }
 }
 
-function handleSpectateMatch(ws: ServerWebSocket, matchId: string): void {
-  const tContext = getTournamentContext(ws);
-  if (!tContext) return;
-
-  const { tournament, participant } = tContext;
-  const match = tournament.matches.find((m: any) => m.id === matchId);
-  if (!match || !match.matchRoomId) return;
-
-  const room = matchRooms.get(match.matchRoomId);
-  if (!room) return;
-
-  addSpectator(room, participant.id, ws);
-  wsToMatchRoom.set(ws, { room, playerId: participant.id, isSpectator: true });
-
-  send(ws, { type: 'MATCH_STARTED', matchId });
-  send(ws, {
-    type: 'ROOM_STATE',
-    roomId: room.id,
-    players: room.players
-      .filter((p: any) => p !== null)
-      .map((p: any) => ({ id: p.id, name: p.name, ready: p.ready })),
-    phase: room.phase,
-  });
-
-  if (room.phase === 'battle') {
-    send(ws, { type: 'GAME_START', firstTurn: room.currentTurn });
-  }
-}
-
-function handleStopSpectating(ws: ServerWebSocket): void {
-  const context = wsToMatchRoom.get(ws);
-  if (!context || !context.isSpectator) return;
-
-  removeSpectator(context.room, context.playerId);
+export function handleTournamentClose(ws: ServerWebSocket): void {
+  leaveTournament(ws);
   wsToMatchRoom.delete(ws);
 }
 
@@ -455,28 +425,51 @@ function switchMatchTurn(room: any): void {
 }
 
 function handleMatchEnd(room: any, winnerId: string): void {
+  const result = reportMatchResultToTournament(room.tournamentMatchId, winnerId);
+  const matchComplete = result?.matchComplete ?? true;
+  const scores = result?.scores ?? [0, 0];
+
   broadcastMatchRoom(room, {
     type: 'GAME_OVER',
     winner: winnerId,
     reason: 'All ships destroyed',
-    scores: [0, 0],
+    scores,
     revealShips: room.players
       .filter((p: any) => p !== null)
       .map((p: any) => ({ playerId: p.id, ships: p.board.ships })),
+    isTournamentMatch: true,
+    matchComplete,
   });
 
   setTimeout(() => {
-    reportMatchResultToTournament(room.tournamentMatchId, winnerId);
-    matchRooms.delete(room.id);
-  }, 3000);
+    if (matchComplete) {
+      matchRooms.delete(room.id);
+      return;
+    }
+
+    resetMatchRoom(room);
+    broadcastMatchRoom(room, { type: 'RESTART_READY', isTournamentMatch: true });
+    broadcastMatchRoom(room, {
+      type: 'ROOM_STATE',
+      roomId: room.id,
+      players: room.players
+        .filter((p: any) => p !== null)
+        .map((p: any) => ({ id: p.id, name: p.name, ready: p.ready })),
+      phase: room.phase,
+    });
+  }, matchComplete ? 3000 : 2000);
 }
 
-function reportMatchResultToTournament(tournamentMatchId: string, winnerId: string): void {
+function reportMatchResultToTournament(
+  tournamentMatchId: string,
+  winnerId: string
+): { matchComplete: boolean; scores: [number, number] } | null {
   for (const tournament of getAllTournaments().values()) {
     const match = tournament.matches.find((m) => m.id === tournamentMatchId);
     if (match) {
       const oldStatus = match.status;
       reportMatchResult(tournament, tournamentMatchId, winnerId);
+      const scores: [number, number] = [match.winsA, match.winsB];
 
       // If the match just completed, check round completion
       if (oldStatus !== 'completed' && match.status === 'completed') {
@@ -521,32 +514,13 @@ function reportMatchResultToTournament(tournamentMatchId: string, winnerId: stri
             });
           }
         }
+        return { matchComplete: true, scores };
       } else if (match.status === 'ongoing') {
-        // Series not over - re-assign same match
-        broadcastToTournament(tournament, {
-          type: 'MATCH_ENDED',
-          matchId: match.id,
-          winnerId: null,
-          winsA: match.winsA,
-          winsB: match.winsB,
-        });
-
-        setTimeout(() => {
-          const pA = tournament.participants.get(match.participantA);
-          const pB = tournament.participants.get(match.participantB);
-          if (pA && pB) {
-            sendToWs(pA.ws, { type: 'MATCH_ASSIGNED', matchId: match.id });
-            sendToWs(pB.ws, { type: 'MATCH_ASSIGNED', matchId: match.id });
-          }
-        }, 2000);
+        return { matchComplete: false, scores };
       }
-      return;
+      return { matchComplete: match.status === 'completed', scores };
     }
   }
+  return null;
 }
 
-function sendToWs(ws: any, message: object): void {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify(message));
-  }
-}

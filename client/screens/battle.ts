@@ -212,3 +212,7 @@ export function showTournamentInfo(show: boolean): void {
     infoBar.classList.toggle('hidden', !show);
   }
 }
+
+export function updateScore(scores: number[]): void {
+  dom.scoreDisplay.textContent = `${scores[0]} : ${scores[1]}`;
+}

@@ -49,9 +49,6 @@ export function updateSchedule(matches: any[], round: number): void {
     const div = document.createElement('div');
     div.className = `match-card ${match.status}`;
 
-    const isMyMatch = match.participantA === state.myId || match.participantB === state.myId;
-    const canSpectate = match.status === 'ongoing' && !isMyMatch;
-
     let html = `<div class="match-players">${match.participantAName || '???'} vs ${match.participantBName || '???'}</div>`;
     html += `<div class="match-status">${getStatusText(match)}</div>`;
 
@@ -59,25 +56,9 @@ export function updateSchedule(matches: any[], round: number): void {
       html += `<div class="match-result">${match.winsA} - ${match.winsB}</div>`;
     }
 
-    if (canSpectate) {
-      html += `<button class="btn-spectate" data-match-id="${match.id}">观战</button>`;
-    }
-
     div.innerHTML = html;
     listEl.appendChild(div);
   }
-
-  // Bind spectate buttons
-  listEl.querySelectorAll('.btn-spectate').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      const matchId = (e.target as HTMLElement).dataset.matchId;
-      if (matchId) {
-        send({ type: 'SPECTATE_MATCH', matchId });
-        state.isSpectating = true;
-        state.currentMatchId = matchId;
-      }
-    });
-  });
 }
 
 function getStatusText(match: any): string {
@@ -90,7 +71,6 @@ function getStatusText(match: any): string {
 export function showMatchAssigned(matchId: string): void {
   state.isInTournamentMatch = true;
   state.currentMatchId = matchId;
-  state.isSpectating = false;
 
   const statusText = document.getElementById('tournament-status-text');
   if (statusText) statusText.textContent = '你已分配到对战，正在进入...';
@@ -98,17 +78,9 @@ export function showMatchAssigned(matchId: string): void {
   send({ type: 'ENTER_MATCH', matchId });
 }
 
-export function showForceEnterMatch(matchId: string): void {
-  if (state.isSpectating) {
-    send({ type: 'STOP_SPECTATING' });
-  }
-  showMatchAssigned(matchId);
-}
-
 export function handleMatchEnded(matchId: string): void {
   state.isInTournamentMatch = false;
   state.currentMatchId = '';
-  state.isSpectating = false;
 
   const statusText = document.getElementById('tournament-status-text');
   if (statusText) statusText.textContent = '对战结束，等待下一轮...';
