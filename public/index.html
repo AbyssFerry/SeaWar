@@ -8,17 +8,12 @@
 </head>
 <body>
   <!-- Tournament Menu Screen -->
-  <div id="tournament-menu" class="screen">
+  <div id="tournament-menu" class="screen hidden">
     <div class="lobby-content">
       <h1 class="title">SeaWar</h1>
-      <p class="subtitle">海战棋 - 锦标赛模式</p>
+      <p class="subtitle">海战棋</p>
       <div class="lobby-form">
         <button id="btn-normal-game" class="btn btn-secondary">普通对战</button>
-        <button id="btn-create-tournament" class="btn btn-primary">创建锦标赛</button>
-        <div class="join-section">
-          <input type="text" id="tournament-code-input" placeholder="输入锦标赛房间码" maxlength="6">
-          <button id="btn-join-tournament" class="btn btn-primary">加入锦标赛</button>
-        </div>
       </div>
     </div>
   </div>
@@ -74,6 +69,14 @@
         <div class="join-section">
           <input type="text" id="roomIdInput" placeholder="输入房间号" maxlength="8">
           <button id="btnJoinRoom" class="btn btn-primary">加入房间</button>
+        </div>
+        <div class="tournament-section">
+          <p class="section-label">锦标赛</p>
+          <button id="btn-create-tournament" class="btn btn-primary">创建锦标赛</button>
+          <div class="join-section">
+            <input type="text" id="tournament-code-input" placeholder="输入锦标赛房间码" maxlength="6">
+            <button id="btn-join-tournament" class="btn btn-primary">加入锦标赛</button>
+          </div>
         </div>
       </div>
       <div id="roomInfo" class="room-info hidden">
@@ -182,6 +185,24 @@
             <button id="btnModalExit" class="btn btn-secondary">退出</button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tournament Config Modal -->
+  <div id="tournament-config-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h3>创建锦标赛</h3>
+      <input type="text" id="tournament-name-input" placeholder="锦标赛名称" maxlength="20" value="我的锦标赛" aria-label="锦标赛名称">
+      <label for="tournament-games-select">每轮局数</label>
+      <select id="tournament-games-select">
+        <option value="1">1局</option>
+        <option value="2">2局</option>
+        <option value="3" selected>3局</option>
+      </select>
+      <div class="modal-buttons">
+        <button id="btn-tournament-config-confirm" class="btn btn-primary">创建</button>
+        <button id="btn-tournament-config-cancel" class="btn btn-secondary">取消</button>
       </div>
     </div>
   </div>
