@@ -747,3 +747,45 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Tournament section in lobby */
+.tournament-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tournament-section .section-label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+/* Tournament config modal */
+#tournament-config-modal .modal {
+  max-width: 320px;
+}
+
+#tournament-config-modal input,
+#tournament-config-modal select {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-size: 1rem;
+}
+
+#tournament-config-modal select {
+  cursor: pointer;
+}
+
+#tournament-config-modal label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+}
