@@ -47,6 +47,50 @@ describe('message handler', () => {
     expect(latest(p2, 'GAME_START').isTournamentMatch).toBe(false);
   });
 
+  it('broadcasts item spawns in normal rooms after the spawn threshold when chance permits', () => {
+    const p1 = createWs();
+    const p2 = createWs();
+
+    send(p1, { type: 'CREATE_ROOM', playerName: 'P1' });
+    const { roomId } = latest(p1, 'ROOM_CREATED');
+    send(p2, { type: 'JOIN_ROOM', roomId, playerName: 'P2' });
+
+    const ships = createShips();
+    send(p1, { type: 'PLACE_SHIPS', ships: cloneShips(ships) });
+    send(p2, { type: 'PLACE_SHIPS', ships: cloneShips(ships) });
+
+    withMathRandom(0, () => {
+      playFiveMissTurns(p1, p2);
+    });
+
+    expect(latest(p1, 'ITEM_SPAWNED').positions).toHaveLength(2);
+    expect(latest(p2, 'ITEM_SPAWNED').positions).toHaveLength(2);
+  });
+
+  it('broadcasts item spawns in tournament matches after the spawn threshold when chance permits', () => {
+    const p1 = createWs();
+    const p2 = createWs();
+
+    send(p1, { type: 'CREATE_TOURNAMENT', name: 'Cup', playerName: 'P1', gamesToWin: 1 });
+    const { code } = latest(p1, 'TOURNAMENT_CREATED');
+    send(p2, { type: 'JOIN_TOURNAMENT', code, playerName: 'P2' });
+    send(p1, { type: 'START_TOURNAMENT' });
+    const matchId = latest(p1, 'MATCH_ASSIGNED').matchId;
+    send(p1, { type: 'ENTER_MATCH', matchId });
+    send(p2, { type: 'ENTER_MATCH', matchId });
+
+    const ships = createShips();
+    send(p1, { type: 'PLACE_SHIPS', ships: cloneShips(ships) });
+    send(p2, { type: 'PLACE_SHIPS', ships: cloneShips(ships) });
+
+    withMathRandom(0, () => {
+      playFiveMissTurns(p1, p2);
+    });
+
+    expect(latest(p1, 'ITEM_SPAWNED').positions).toHaveLength(2);
+    expect(latest(p2, 'ITEM_SPAWNED').positions).toHaveLength(2);
+  });
+
   it('clears tournament match context before starting a normal room on the same connection', () => {
     const p1 = createWs();
     const p2 = createWs();
@@ -145,6 +189,30 @@ function cloneShips(ships: Ship[]): Ship[] {
     hits: [],
     sunk: false,
   }));
+}
+
+function withMathRandom<T>(value: number, fn: () => T): T {
+  const original = Math.random;
+  Math.random = () => value;
+  try {
+    return fn();
+  } finally {
+    Math.random = original;
+  }
+}
+
+function playFiveMissTurns(p1: FakeWs, p2: FakeWs): void {
+  const misses = [
+    { player: p1, x: 14, y: 14 },
+    { player: p2, x: 13, y: 14 },
+    { player: p1, x: 12, y: 14 },
+    { player: p2, x: 11, y: 14 },
+    { player: p1, x: 10, y: 14 },
+  ];
+
+  for (const miss of misses) {
+    send(miss.player, { type: 'FIRE', x: miss.x, y: miss.y });
+  }
 }
 
 function winGameBySinkingAllShips(winner: FakeWs, loser: FakeWs, loserShips: Ship[]): void {

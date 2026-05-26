@@ -23,7 +23,7 @@ import {
   resetMatchRoom,
 } from './match-room';
 import { validateShipPlacement, generateRandomShips } from './ship-validator';
-import { fire, useShell, checkWin, placeShips } from './game-logic';
+import { fire, useShell, checkWin, placeShips, shouldSpawnItem, spawnItem } from './game-logic';
 
 const matchRooms = new Map<string, any>();
 const wsToMatchRoom = new WeakMap<ServerWebSocket, { room: any; playerId: string }>();
@@ -357,6 +357,7 @@ function handleMatchFire(ws: ServerWebSocket, room: any, playerId: string, x: nu
   if (result.result === 'miss' || result.shipSunk) {
     room.turnCount++;
     switchMatchTurn(room);
+    trySpawnItems(room);
   }
 
   return true;
@@ -431,6 +432,7 @@ function handleMatchUseShell(
   if (!centerHit || centerSunk) {
     room.turnCount++;
     switchMatchTurn(room);
+    trySpawnItems(room);
   }
 
   return true;
@@ -442,6 +444,29 @@ function switchMatchTurn(room: any): void {
     room.currentTurn = opponent.id;
   }
   broadcastMatchRoom(room, { type: 'TURN_CHANGE', currentTurn: room.currentTurn });
+}
+
+function trySpawnItems(room: any): void {
+  if (!shouldSpawnItem(room.turnCount)) {
+    return;
+  }
+
+  const positions: { playerId: string; x: number; y: number }[] = [];
+
+  for (const player of room.players) {
+    if (!player) continue;
+    const pos = spawnItem(player.board);
+    if (pos) {
+      positions.push({ playerId: player.id, x: pos.x, y: pos.y });
+    }
+  }
+
+  if (positions.length > 0) {
+    broadcastMatchRoom(room, {
+      type: 'ITEM_SPAWNED',
+      positions,
+    });
+  }
 }
 
 function handleMatchEnd(room: any, winnerId: string): void {
