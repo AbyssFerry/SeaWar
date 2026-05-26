@@ -52,7 +52,7 @@ export function updateSchedule(matches: any[], round: number): void {
     let html = `<div class="match-players">${match.participantAName || '???'} vs ${match.participantBName || '???'}</div>`;
     html += `<div class="match-status">${getStatusText(match)}</div>`;
 
-    if (match.status === 'completed') {
+    if (match.status !== 'pending') {
       html += `<div class="match-result">${match.winsA} - ${match.winsB}</div>`;
     }
 

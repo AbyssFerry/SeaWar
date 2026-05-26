@@ -25,6 +25,10 @@ body {
   display: none;
 }
 
+.hidden {
+  display: none !important;
+}
+
 /* Buttons */
 .btn {
   padding: 12px 24px;

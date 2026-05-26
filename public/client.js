@@ -781,7 +781,7 @@ function updateSchedule(matches, round) {
     div.className = `match-card ${match.status}`;
     let html = `<div class="match-players">${match.participantAName || "???"} vs ${match.participantBName || "???"}</div>`;
     html += `<div class="match-status">${getStatusText(match)}</div>`;
-    if (match.status === "completed") {
+    if (match.status !== "pending") {
       html += `<div class="match-result">${match.winsA} - ${match.winsB}</div>`;
     }
     div.innerHTML = html;
@@ -842,7 +842,7 @@ function handleServerMessage(msg) {
     case "ROOM_STATE":
       state.roomId = msg.roomId;
       updatePlayerList(msg.players);
-      if (msg.phase === "placement" && state.currentPhase !== "placement" && state.currentPhase !== "battle") {
+      if (msg.phase === "placement" && state.currentPhase !== "placement" && (state.currentPhase !== "battle" || state.isInTournamentMatch)) {
         showScreen("placement");
         initBoard();
         updatePalette();
@@ -920,6 +920,9 @@ function handleServerMessage(msg) {
       state.tournamentPhase = "running";
       showTournamentMain(state.tournamentName || "锦标赛", state.tournamentCode);
       updateSchedule(msg.matches, 1);
+      break;
+    case "TOURNAMENT_SCHEDULE_UPDATE":
+      updateSchedule(msg.matches, msg.currentRound);
       break;
     case "MATCH_ASSIGNED":
       showMatchAssigned(msg.matchId);

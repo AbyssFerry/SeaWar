@@ -91,6 +91,33 @@ describe('message handler', () => {
     expect(gameOver.matchComplete).toBe(false);
     expect(gameOver.scores).toEqual([1, 0]);
   });
+
+  it('broadcasts schedule updates after a tournament match completes', () => {
+    const p1 = createWs();
+    const p2 = createWs();
+
+    send(p1, { type: 'CREATE_TOURNAMENT', name: 'Cup', playerName: 'P1', gamesToWin: 1 });
+    const { code } = latest(p1, 'TOURNAMENT_CREATED');
+    send(p2, { type: 'JOIN_TOURNAMENT', code, playerName: 'P2' });
+    send(p1, { type: 'START_TOURNAMENT' });
+    const matchId = latest(p1, 'MATCH_ASSIGNED').matchId;
+    send(p1, { type: 'ENTER_MATCH', matchId });
+    send(p2, { type: 'ENTER_MATCH', matchId });
+
+    const ships = createShips();
+    send(p1, { type: 'PLACE_SHIPS', ships: cloneShips(ships) });
+    send(p2, { type: 'PLACE_SHIPS', ships: cloneShips(ships) });
+    winGameBySinkingAllShips(p1, p2, ships);
+
+    const scheduleUpdate = p1.sent.findLast((m: any) => m.type === 'TOURNAMENT_SCHEDULE_UPDATE') as any;
+    expect(scheduleUpdate).toBeTruthy();
+    expect(scheduleUpdate.matches[0]).toMatchObject({
+      id: matchId,
+      status: 'completed',
+      winsA: 1,
+      winsB: 0,
+    });
+  });
 });
 
 function createShips(): Ship[] {

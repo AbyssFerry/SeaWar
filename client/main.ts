@@ -27,7 +27,7 @@ function handleServerMessage(msg: ServerMessage) {
       if (
         msg.phase === 'placement' &&
         state.currentPhase !== 'placement' &&
-        state.currentPhase !== 'battle'
+        (state.currentPhase !== 'battle' || state.isInTournamentMatch)
       ) {
         showScreen('placement');
         placement.initBoard();
@@ -118,6 +118,10 @@ function handleServerMessage(msg: ServerMessage) {
       state.tournamentPhase = 'running';
       tournamentMain.showTournamentMain(state.tournamentName || '锦标赛', state.tournamentCode);
       tournamentMain.updateSchedule(msg.matches, 1);
+      break;
+
+    case 'TOURNAMENT_SCHEDULE_UPDATE':
+      tournamentMain.updateSchedule(msg.matches, msg.currentRound);
       break;
 
     case 'MATCH_ASSIGNED':

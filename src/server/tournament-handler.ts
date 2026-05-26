@@ -163,6 +163,14 @@ function createMatchesPayload(tournament: any): TournamentMatchSummary[] {
   }));
 }
 
+function broadcastSchedule(tournament: any): void {
+  broadcastToTournament(tournament, {
+    type: 'TOURNAMENT_SCHEDULE_UPDATE',
+    matches: createMatchesPayload(tournament),
+    currentRound: tournament.currentRound,
+  });
+}
+
 function assignCurrentRoundMatches(tournament: any): void {
   const currentMatches = getCurrentRoundMatches(tournament);
   for (const match of currentMatches) {
@@ -487,21 +495,23 @@ function reportMatchResultToTournament(
         if (isRoundComplete(tournament)) {
           const hasNext = advanceRound(tournament);
           if (hasNext) {
-            broadcastToTournament(tournament, {
-              type: 'ROUND_COMPLETED',
-              nextRound: tournament.currentRound,
-            });
-
             // Update next round matches to ongoing
             const nextMatches = getCurrentRoundMatches(tournament);
             for (const m of nextMatches) {
               m.status = 'ongoing';
             }
 
+            broadcastSchedule(tournament);
+            broadcastToTournament(tournament, {
+              type: 'ROUND_COMPLETED',
+              nextRound: tournament.currentRound,
+            });
+
             setTimeout(() => {
               assignCurrentRoundMatches(tournament);
             }, 2000);
           } else {
+            broadcastSchedule(tournament);
             const finalRankings = calculateStandings(tournament).map((s, i) => ({
               rank: i + 1,
               participantId: s.participantId,
@@ -513,9 +523,12 @@ function reportMatchResultToTournament(
               rankings: finalRankings,
             });
           }
+        } else {
+          broadcastSchedule(tournament);
         }
         return { matchComplete: true, scores };
       } else if (match.status === 'ongoing') {
+        broadcastSchedule(tournament);
         return { matchComplete: false, scores };
       }
       return { matchComplete: match.status === 'completed', scores };

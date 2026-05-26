@@ -119,6 +119,7 @@ export type ServerMessage =
   | { type: 'TOURNAMENT_CREATED'; code: string }
   | { type: 'TOURNAMENT_STATE'; name: string; code: string; hostId: string; participants: { id: string; name: string }[]; phase: TournamentPhase }
   | { type: 'TOURNAMENT_STARTED'; matches: TournamentMatchSummary[] }
+  | { type: 'TOURNAMENT_SCHEDULE_UPDATE'; matches: TournamentMatchSummary[]; currentRound: number }
   | { type: 'MATCH_ASSIGNED'; matchId: string }
   | { type: 'MATCH_STARTED'; matchId: string }
   | { type: 'MATCH_ENDED'; matchId: string; winnerId: string | null; winsA: number; winsB: number }
