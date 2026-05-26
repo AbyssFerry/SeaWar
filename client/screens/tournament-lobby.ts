@@ -13,7 +13,7 @@ export function init(): void {
   leaveBtn?.addEventListener('click', () => {
     send({ type: 'LEAVE_TOURNAMENT' });
     resetTournamentState();
-    showScreen('tournament-menu');
+    showScreen('lobby');
   });
 }
 
