@@ -2,6 +2,9 @@ export const screens = {
   lobby: document.getElementById('lobby')!,
   placement: document.getElementById('placement')!,
   battle: document.getElementById('battle')!,
+  tournamentMenu: document.getElementById('tournament-menu')!,
+  tournamentLobby: document.getElementById('tournament-lobby')!,
+  tournamentMain: document.getElementById('tournament-main')!,
 };
 
 export const playerNameInput = document.getElementById('playerName') as HTMLInputElement;
@@ -17,6 +20,7 @@ export const placementBoard = document.getElementById('placementBoard')!;
 export const shipPalette = document.getElementById('shipPalette')!;
 export const btnRotate = document.getElementById('btnRotate') as HTMLButtonElement;
 export const btnRandom = document.getElementById('btnRandom') as HTMLButtonElement;
+export const btnClearPlacement = document.getElementById('btnClearPlacement') as HTMLButtonElement;
 export const btnConfirm = document.getElementById('btnConfirm') as HTMLButtonElement;
 
 export const myBoard = document.getElementById('myBoard')!;

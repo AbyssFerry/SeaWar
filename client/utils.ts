@@ -13,8 +13,25 @@ export function showToast(message: string, type = 'info') {
   }, 2500);
 }
 
-export function showScreen(name: 'lobby' | 'placement' | 'battle') {
+export function showScreen(
+  name: 'lobby' | 'placement' | 'battle' | 'tournament-menu' | 'tournament-lobby' | 'tournament-main'
+) {
   state.currentPhase = name;
-  Object.values(screens).forEach((s) => s.classList.add('hidden'));
-  screens[name].classList.remove('hidden');
+  Object.values(screens).forEach((s) => s?.classList.add('hidden'));
+
+  const keyMap: Record<typeof name, keyof typeof screens> = {
+    'lobby': 'lobby',
+    'placement': 'placement',
+    'battle': 'battle',
+    'tournament-menu': 'tournamentMenu',
+    'tournament-lobby': 'tournamentLobby',
+    'tournament-main': 'tournamentMain',
+  };
+
+  const screen = screens[keyMap[name]];
+  if (!screen) {
+    console.error(`Unknown screen: ${name}`);
+    return;
+  }
+  screen.classList.remove('hidden');
 }

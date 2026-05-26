@@ -68,6 +68,32 @@ function clearPlacementPreview() {
   }
 }
 
+function clearPlacedShips() {
+  state.placedShips = [];
+  state.selectedShipSize = SHIP_SIZES[0];
+  clearPlacementPreview();
+  for (let y = 0; y < BOARD_SIZE; y++) {
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      state.placementBoardCells[y][x].classList.remove('ship');
+    }
+  }
+  updatePalette();
+}
+
+function renderPlacedShips() {
+  for (let y = 0; y < BOARD_SIZE; y++) {
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      state.placementBoardCells[y][x].classList.remove('ship');
+    }
+  }
+  for (const ship of state.placedShips) {
+    for (const c of ship.coords) {
+      state.placementBoardCells[c.y][c.x].classList.add('ship');
+    }
+  }
+  updatePalette();
+}
+
 function onPlacementCellClick(x: number, y: number) {
   if (state.placedShips.length >= SHIP_SIZES.length) return;
 
@@ -111,17 +137,11 @@ export function init() {
 
   dom.btnRandom.addEventListener('click', () => {
     state.placedShips = generateRandomShips();
-    for (let y = 0; y < BOARD_SIZE; y++) {
-      for (let x = 0; x < BOARD_SIZE; x++) {
-        state.placementBoardCells[y][x].classList.remove('ship');
-      }
-    }
-    for (const ship of state.placedShips) {
-      for (const c of ship.coords) {
-        state.placementBoardCells[c.y][c.x].classList.add('ship');
-      }
-    }
-    updatePalette();
+    renderPlacedShips();
+  });
+
+  dom.btnClearPlacement.addEventListener('click', () => {
+    clearPlacedShips();
   });
 
   dom.btnConfirm.addEventListener('click', () => {

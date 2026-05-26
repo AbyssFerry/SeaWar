@@ -67,8 +67,8 @@ export function leaveRoom(room: Room, playerId: string): void {
   }
 }
 
-export function broadcast(room: Room, message: object, excludePlayerId?: string): void {
-  for (const player of room.players) {
+export function broadcastToPlayers(players: (Player | null)[], message: object, excludePlayerId?: string): void {
+  for (const player of players) {
     if (!player) continue;
     if (excludePlayerId && player.id === excludePlayerId) continue;
 
@@ -77,6 +77,10 @@ export function broadcast(room: Room, message: object, excludePlayerId?: string)
       ws.send(JSON.stringify(message));
     }
   }
+}
+
+export function broadcast(room: Room, message: object, excludePlayerId?: string): void {
+  broadcastToPlayers(room.players, message, excludePlayerId);
 }
 
 export function getOpponent(room: Room, playerId: string): Player | null {

@@ -25,7 +25,13 @@ var state = {
   placementBoardCells: [],
   enemyBoardState: Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill("unknown")),
   myBoardHits: new Set,
-  myBoardMisses: new Set
+  myBoardMisses: new Set,
+  tournamentName: "",
+  tournamentCode: "",
+  tournamentPhase: "",
+  tournamentHostId: "",
+  isInTournamentMatch: false,
+  currentMatchId: ""
 };
 function resetGameState() {
   state.isMyTurn = false;
@@ -40,6 +46,15 @@ function resetGameState() {
   for (let y = 0;y < BOARD_SIZE; y++) {
     state.enemyBoardState[y].fill("unknown");
   }
+  state.isInTournamentMatch = false;
+  state.currentMatchId = "";
+}
+function resetTournamentState() {
+  state.tournamentName = "";
+  state.tournamentCode = "";
+  state.tournamentPhase = "";
+  state.tournamentHostId = "";
+  resetGameState();
 }
 
 // client/ws.ts
@@ -79,7 +94,10 @@ function closeConnection() {
 var screens = {
   lobby: document.getElementById("lobby"),
   placement: document.getElementById("placement"),
-  battle: document.getElementById("battle")
+  battle: document.getElementById("battle"),
+  tournamentMenu: document.getElementById("tournament-menu"),
+  tournamentLobby: document.getElementById("tournament-lobby"),
+  tournamentMain: document.getElementById("tournament-main")
 };
 var playerNameInput = document.getElementById("playerName");
 var roomIdInput = document.getElementById("roomIdInput");
@@ -93,6 +111,7 @@ var placementBoard = document.getElementById("placementBoard");
 var shipPalette = document.getElementById("shipPalette");
 var btnRotate = document.getElementById("btnRotate");
 var btnRandom = document.getElementById("btnRandom");
+var btnClearPlacement = document.getElementById("btnClearPlacement");
 var btnConfirm = document.getElementById("btnConfirm");
 var myBoard = document.getElementById("myBoard");
 var enemyBoard = document.getElementById("enemyBoard");
@@ -119,8 +138,21 @@ function showToast(message, type = "info") {
 }
 function showScreen(name) {
   state.currentPhase = name;
-  Object.values(screens).forEach((s) => s.classList.add("hidden"));
-  screens[name].classList.remove("hidden");
+  Object.values(screens).forEach((s) => s?.classList.add("hidden"));
+  const keyMap = {
+    lobby: "lobby",
+    placement: "placement",
+    battle: "battle",
+    "tournament-menu": "tournamentMenu",
+    "tournament-lobby": "tournamentLobby",
+    "tournament-main": "tournamentMain"
+  };
+  const screen = screens[keyMap[name]];
+  if (!screen) {
+    console.error(`Unknown screen: ${name}`);
+    return;
+  }
+  screen.classList.remove("hidden");
 }
 
 // client/screens/lobby.ts
@@ -138,13 +170,18 @@ function showRoomCreated(roomId) {
   roomIdDisplay.textContent = roomId;
   roomInfo.classList.remove("hidden");
 }
+var initialized = false;
 function init() {
+  if (initialized)
+    return;
+  initialized = true;
   btnCreateRoom.addEventListener("click", () => {
     const name = playerNameInput.value.trim();
     if (!name) {
       alert("请输入你的名字");
       return;
     }
+    resetTournamentState();
     send({ type: "CREATE_ROOM", playerName: name });
   });
   btnJoinRoom.addEventListener("click", () => {
@@ -158,7 +195,46 @@ function init() {
       alert("请输入房间号");
       return;
     }
+    resetTournamentState();
     send({ type: "JOIN_ROOM", roomId: rid, playerName: name });
+  });
+  const btnCreateTournament = document.getElementById("btn-create-tournament");
+  const btnJoinTournament = document.getElementById("btn-join-tournament");
+  const codeInput = document.getElementById("tournament-code-input");
+  const modal = document.getElementById("tournament-config-modal");
+  const confirmBtn = document.getElementById("btn-tournament-config-confirm");
+  const cancelBtn = document.getElementById("btn-tournament-config-cancel");
+  const nameInput = document.getElementById("tournament-name-input");
+  const gamesSelect = document.getElementById("tournament-games-select");
+  btnCreateTournament?.addEventListener("click", () => {
+    modal?.classList.remove("hidden");
+  });
+  cancelBtn?.addEventListener("click", () => {
+    modal?.classList.add("hidden");
+  });
+  confirmBtn?.addEventListener("click", () => {
+    const name = nameInput?.value.trim() || "我的锦标赛";
+    const playerName = playerNameInput.value.trim();
+    if (!playerName) {
+      alert("请输入你的名字");
+      return;
+    }
+    const gamesToWin = parseInt(gamesSelect?.value ?? "3");
+    send({ type: "CREATE_TOURNAMENT", name, playerName, gamesToWin });
+    modal?.classList.add("hidden");
+  });
+  btnJoinTournament?.addEventListener("click", () => {
+    const code = codeInput?.value.trim() ?? "";
+    const playerName = playerNameInput.value.trim();
+    if (!playerName) {
+      alert("请输入你的名字");
+      return;
+    }
+    if (code.length !== 6) {
+      alert("请输入6位房间码");
+      return;
+    }
+    send({ type: "JOIN_TOURNAMENT", code, playerName });
   });
 }
 
@@ -311,6 +387,30 @@ function clearPlacementPreview() {
     }
   }
 }
+function clearPlacedShips() {
+  state.placedShips = [];
+  state.selectedShipSize = SHIP_SIZES[0];
+  clearPlacementPreview();
+  for (let y = 0;y < BOARD_SIZE; y++) {
+    for (let x = 0;x < BOARD_SIZE; x++) {
+      state.placementBoardCells[y][x].classList.remove("ship");
+    }
+  }
+  updatePalette();
+}
+function renderPlacedShips() {
+  for (let y = 0;y < BOARD_SIZE; y++) {
+    for (let x = 0;x < BOARD_SIZE; x++) {
+      state.placementBoardCells[y][x].classList.remove("ship");
+    }
+  }
+  for (const ship of state.placedShips) {
+    for (const c of ship.coords) {
+      state.placementBoardCells[c.y][c.x].classList.add("ship");
+    }
+  }
+  updatePalette();
+}
 function onPlacementCellClick(x, y) {
   if (state.placedShips.length >= SHIP_SIZES.length)
     return;
@@ -350,17 +450,10 @@ function init2() {
   });
   btnRandom.addEventListener("click", () => {
     state.placedShips = generateRandomShips();
-    for (let y = 0;y < BOARD_SIZE; y++) {
-      for (let x = 0;x < BOARD_SIZE; x++) {
-        state.placementBoardCells[y][x].classList.remove("ship");
-      }
-    }
-    for (const ship of state.placedShips) {
-      for (const c of ship.coords) {
-        state.placementBoardCells[c.y][c.x].classList.add("ship");
-      }
-    }
-    updatePalette();
+    renderPlacedShips();
+  });
+  btnClearPlacement.addEventListener("click", () => {
+    clearPlacedShips();
   });
   btnConfirm.addEventListener("click", () => {
     if (state.placedShips.length !== SHIP_SIZES.length) {
@@ -590,6 +683,9 @@ function handleItemSpawned(positions) {
     }
   }
 }
+function updateScore(scores) {
+  scoreDisplay.textContent = `${scores[0]} : ${scores[1]}`;
+}
 
 // client/screens/gameover.ts
 function showModal(isWinner, scores, revealShips) {
@@ -627,6 +723,137 @@ function hideModal() {
   gameOverModal.classList.add("hidden");
 }
 
+// client/screens/tournament-menu.ts
+function init4() {}
+
+// client/screens/tournament-lobby.ts
+function init5() {
+  const startBtn = document.getElementById("btn-start-tournament");
+  const leaveBtn = document.getElementById("btn-leave-tournament-lobby");
+  startBtn?.addEventListener("click", () => {
+    send({ type: "START_TOURNAMENT" });
+  });
+  leaveBtn?.addEventListener("click", () => {
+    send({ type: "LEAVE_TOURNAMENT" });
+    resetTournamentState();
+    showScreen("lobby");
+  });
+}
+function showTournamentLobby(name, code, hostId, participants) {
+  showScreen("tournament-lobby");
+  const nameEl = document.getElementById("tournament-lobby-name");
+  const codeEl = document.getElementById("tournament-lobby-code");
+  const listEl = document.getElementById("tournament-lobby-players");
+  const startBtn = document.getElementById("btn-start-tournament");
+  if (nameEl)
+    nameEl.textContent = name;
+  if (codeEl)
+    codeEl.textContent = code;
+  if (listEl) {
+    listEl.innerHTML = "";
+    for (const p of participants) {
+      const li = document.createElement("li");
+      li.textContent = p.name + (p.id === hostId ? " (房主)" : "");
+      listEl.appendChild(li);
+    }
+  }
+  if (startBtn) {
+    startBtn.classList.toggle("hidden", state.myId !== hostId);
+  }
+}
+
+// client/screens/tournament-main.ts
+var currentMatches = [];
+var currentRound = 1;
+function init6() {}
+function showTournamentMain(name, code) {
+  showScreen("tournament-main");
+  const nameEl = document.getElementById("tournament-main-name");
+  const codeEl = document.getElementById("tournament-main-code");
+  if (nameEl)
+    nameEl.textContent = name;
+  if (codeEl)
+    codeEl.textContent = code;
+}
+function updateStandings(standings) {
+  const tbody = document.querySelector("#standings-table tbody");
+  if (!tbody)
+    return;
+  tbody.innerHTML = "";
+  standings.forEach((s, index) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${index + 1}</td><td>${s.name}</td><td>${s.score}</td><td>${s.matchesPlayed}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+function updateSchedule(matches, round) {
+  currentMatches = matches;
+  currentRound = round;
+  const roundEl = document.getElementById("tournament-current-round");
+  if (roundEl)
+    roundEl.textContent = String(round);
+  const listEl = document.getElementById("schedule-list");
+  if (!listEl)
+    return;
+  listEl.innerHTML = "";
+  for (const match of matches) {
+    const div = document.createElement("div");
+    div.className = `match-card ${match.status}`;
+    let html = `<div class="match-players">${match.participantAName || "???"} vs ${match.participantBName || "???"}</div>`;
+    html += `<div class="match-status">${getStatusText(match)}</div>`;
+    if (match.status !== "pending") {
+      html += `<div class="match-result">${match.winsA} - ${match.winsB}</div>`;
+    }
+    div.innerHTML = html;
+    listEl.appendChild(div);
+  }
+}
+function getStatusText(match) {
+  if (match.status === "pending")
+    return "未开始";
+  if (match.status === "ongoing")
+    return "进行中";
+  if (match.status === "completed")
+    return "已结束";
+  return match.status;
+}
+function showMatchAssigned(matchId) {
+  state.isInTournamentMatch = true;
+  state.currentMatchId = matchId;
+  const statusText = document.getElementById("tournament-status-text");
+  if (statusText)
+    statusText.textContent = "你已分配到对战，正在进入...";
+  send({ type: "ENTER_MATCH", matchId });
+}
+function handleMatchEnded(matchId) {
+  state.isInTournamentMatch = false;
+  state.currentMatchId = "";
+  const statusText = document.getElementById("tournament-status-text");
+  if (statusText)
+    statusText.textContent = "对战结束，等待下一轮...";
+}
+function showRoundCompleted(nextRound) {
+  const statusText = document.getElementById("tournament-status-text");
+  if (statusText)
+    statusText.textContent = `第 ${nextRound} 轮即将开始`;
+}
+function showTournamentEnded(rankings) {
+  const statusText = document.getElementById("tournament-status-text");
+  if (statusText) {
+    let html = "<h3>锦标赛结束！</h3><ol>";
+    for (const r of rankings) {
+      html += `<li>${r.name} - ${r.score} 分</li>`;
+    }
+    html += "</ol>";
+    statusText.innerHTML = html;
+  }
+}
+
+// client/core/tournament-navigation.ts
+function shouldReturnToTournamentMainAfterMatch(completedMatchId, state2) {
+  return state2.currentPhase === "battle" && state2.currentMatchId === completedMatchId;
+}
+
 // client/main.ts
 function handleServerMessage(msg) {
   switch (msg.type) {
@@ -640,13 +867,14 @@ function handleServerMessage(msg) {
     case "ROOM_STATE":
       state.roomId = msg.roomId;
       updatePlayerList(msg.players);
-      if (msg.phase === "placement" && state.currentPhase === "lobby") {
+      if (msg.phase === "placement" && state.currentPhase !== "placement" && (state.currentPhase !== "battle" || state.isInTournamentMatch)) {
         showScreen("placement");
         initBoard();
         updatePalette();
       }
       break;
     case "GAME_START":
+      state.isInTournamentMatch = msg.isTournamentMatch === true;
       state.isMyTurn = msg.firstTurn === state.myId;
       showScreen("battle");
       initBoards();
@@ -671,10 +899,29 @@ function handleServerMessage(msg) {
       updateShellInventory();
       break;
     case "GAME_OVER":
-      showModal(msg.winner === state.myId, msg.scores, msg.revealShips);
+      if (state.isInTournamentMatch) {
+        updateScore(msg.scores);
+        if (msg.matchComplete === false) {
+          break;
+        }
+        const completedMatchId = state.currentMatchId;
+        setTimeout(() => {
+          if (shouldReturnToTournamentMainAfterMatch(completedMatchId, state)) {
+            showTournamentMain("", state.tournamentCode);
+          }
+        }, 2000);
+      } else {
+        showModal(msg.winner === state.myId, msg.scores, msg.revealShips);
+      }
       break;
     case "RESTART_READY":
+      const isTournamentRestart = msg.isTournamentMatch === true;
+      const currentMatchId = state.currentMatchId;
       resetGameState();
+      if (isTournamentRestart) {
+        state.isInTournamentMatch = true;
+        state.currentMatchId = currentMatchId;
+      }
       hideModal();
       showScreen("placement");
       initBoard();
@@ -682,6 +929,42 @@ function handleServerMessage(msg) {
       break;
     case "OPPONENT_LEFT":
       alert("对手已离开");
+      break;
+    case "TOURNAMENT_CREATED":
+      state.tournamentCode = msg.code;
+      break;
+    case "TOURNAMENT_STATE":
+      state.tournamentName = msg.name;
+      state.tournamentCode = msg.code;
+      state.tournamentPhase = msg.phase;
+      state.tournamentHostId = msg.hostId;
+      if (msg.phase === "lobby") {
+        showTournamentLobby(msg.name, msg.code, msg.hostId, msg.participants);
+      }
+      break;
+    case "TOURNAMENT_STARTED":
+      state.tournamentPhase = "running";
+      showTournamentMain(state.tournamentName || "锦标赛", state.tournamentCode);
+      updateSchedule(msg.matches, 1);
+      break;
+    case "TOURNAMENT_SCHEDULE_UPDATE":
+      updateSchedule(msg.matches, msg.currentRound);
+      break;
+    case "MATCH_ASSIGNED":
+      showMatchAssigned(msg.matchId);
+      break;
+    case "MATCH_ENDED":
+      handleMatchEnded(msg.matchId);
+      break;
+    case "STANDINGS_UPDATE":
+      updateStandings(msg.standings);
+      break;
+    case "ROUND_COMPLETED":
+      showRoundCompleted(msg.nextRound);
+      break;
+    case "TOURNAMENT_ENDED":
+      state.tournamentPhase = "ended";
+      showTournamentEnded(msg.rankings);
       break;
     case "ERROR":
       console.error("Server error:", msg.message);
@@ -691,4 +974,8 @@ function handleServerMessage(msg) {
 init();
 init2();
 init3();
+init4();
+init5();
+init6();
+showScreen("lobby");
 initWebSocket(handleServerMessage);

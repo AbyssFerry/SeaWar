@@ -24,6 +24,49 @@ export type Player = {
 
 export type RoomPhase = 'lobby' | 'placement' | 'battle' | 'ended';
 
+export type TournamentPhase = 'lobby' | 'running' | 'ended';
+
+export type TournamentParticipant = {
+  id: string;
+  name: string;
+  ws: any;
+  score: number;
+  matchesPlayed: number;
+};
+
+export type TournamentMatchStatus = 'pending' | 'ongoing' | 'completed';
+
+export type TournamentMatch = {
+  id: string;
+  round: number;
+  participantA: string;
+  participantB: string;
+  status: TournamentMatchStatus;
+  winner: string | null;
+  gamesToWin: number;
+  winsA: number;
+  winsB: number;
+  matchRoomId: string | null;
+};
+
+export type TournamentMatchSummary = Omit<TournamentMatch, 'matchRoomId'> & {
+  participantAName: string;
+  participantBName: string;
+};
+
+export type Tournament = {
+  id: string;
+  name: string;
+  code: string;
+  hostId: string;
+  phase: TournamentPhase;
+  participants: Map<string, TournamentParticipant>;
+  matches: TournamentMatch[];
+  totalRounds: number;
+  currentRound: number;
+  gamesToWin: number;
+};
+
 export type Room = {
   id: string;
   players: [Player | null, Player | null];
@@ -45,21 +88,44 @@ export type ClientMessage =
   | { type: 'PLACE_SHIPS_AUTO' }
   | { type: 'FIRE'; x: number; y: number }
   | { type: 'USE_SHELL'; shellType: string; x: number; y: number }
-  | { type: 'PLAY_AGAIN' };
+  | { type: 'PLAY_AGAIN' }
+  | { type: 'CREATE_TOURNAMENT'; name: string; playerName: string; gamesToWin: number }
+  | { type: 'JOIN_TOURNAMENT'; code: string; playerName: string }
+  | { type: 'LEAVE_TOURNAMENT' }
+  | { type: 'START_TOURNAMENT' }
+  | { type: 'ENTER_MATCH'; matchId: string };
 
 export type ServerMessage =
   | { type: 'ROOM_CREATED'; roomId: string }
   | { type: 'PLAYER_ASSIGNED'; playerId: string }
   | { type: 'ROOM_STATE'; roomId: string; players: { id: string; name: string; ready: boolean }[]; phase: RoomPhase }
-  | { type: 'GAME_START'; firstTurn: string }
+  | { type: 'GAME_START'; firstTurn: string; isTournamentMatch: boolean }
   | { type: 'FIRE_RESULT'; shooter: string; x: number; y: number; result: 'hit' | 'miss'; shipSunk?: Ship; gotShell?: boolean; shellType?: string }
   | { type: 'SHELL_RESULT'; shooter: string; shellType: string; targets: { x: number; y: number; result: 'hit' | 'miss'; shipSunk?: Ship }[]; gotShell?: boolean; newShellType?: string }
   | { type: 'TURN_CHANGE'; currentTurn: string }
   | { type: 'ITEM_SPAWNED'; positions: { playerId: string; x: number; y: number }[] }
   | { type: 'INVENTORY_UPDATE'; shells: string[] }
-  | { type: 'GAME_OVER'; winner: string; reason: string; scores: number[]; revealShips: { playerId: string; ships: Ship[] }[] }
-  | { type: 'RESTART_READY' }
+  | {
+      type: 'GAME_OVER';
+      winner: string;
+      reason: string;
+      scores: number[];
+      revealShips: { playerId: string; ships: Ship[] }[];
+      isTournamentMatch?: boolean;
+      matchComplete?: boolean;
+    }
+  | { type: 'RESTART_READY'; isTournamentMatch?: boolean }
   | { type: 'OPPONENT_LEFT' }
+  | { type: 'TOURNAMENT_CREATED'; code: string }
+  | { type: 'TOURNAMENT_STATE'; name: string; code: string; hostId: string; participants: { id: string; name: string }[]; phase: TournamentPhase }
+  | { type: 'TOURNAMENT_STARTED'; matches: TournamentMatchSummary[] }
+  | { type: 'TOURNAMENT_SCHEDULE_UPDATE'; matches: TournamentMatchSummary[]; currentRound: number }
+  | { type: 'MATCH_ASSIGNED'; matchId: string }
+  | { type: 'MATCH_STARTED'; matchId: string }
+  | { type: 'MATCH_ENDED'; matchId: string; winnerId: string | null; winsA: number; winsB: number }
+  | { type: 'STANDINGS_UPDATE'; standings: { participantId: string; name: string; score: number; matchesPlayed: number }[] }
+  | { type: 'ROUND_COMPLETED'; nextRound: number }
+  | { type: 'TOURNAMENT_ENDED'; rankings: { rank: number; participantId: string; name: string; score: number }[] }
   | { type: 'ERROR'; message: string };
 
 export const SHELL_TYPES = ['cross', 'multi', 'nuke'] as const;

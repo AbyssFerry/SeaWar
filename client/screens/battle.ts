@@ -205,3 +205,7 @@ export function handleItemSpawned(positions: { playerId: string; x: number; y: n
     }
   }
 }
+
+export function updateScore(scores: number[]): void {
+  dom.scoreDisplay.textContent = `${scores[0]} : ${scores[1]}`;
+}

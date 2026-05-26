@@ -7,8 +7,59 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Tournament Menu Screen -->
+  <div id="tournament-menu" class="screen hidden">
+    <div class="lobby-content">
+      <h1 class="title">SeaWar</h1>
+      <p class="subtitle">海战棋</p>
+      <div class="lobby-form">
+        <button id="btn-normal-game" class="btn btn-secondary">普通对战</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tournament Lobby Screen -->
+  <div id="tournament-lobby" class="screen hidden">
+    <div class="lobby-content">
+      <h2 id="tournament-lobby-name">锦标赛</h2>
+      <p>房间码: <span id="tournament-lobby-code"></span></p>
+      <h3>参与者</h3>
+      <ul id="tournament-lobby-players"></ul>
+      <div class="lobby-form">
+        <button id="btn-start-tournament" class="btn btn-primary hidden">开始锦标赛</button>
+        <button id="btn-leave-tournament-lobby" class="btn btn-secondary">离开</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tournament Main Screen -->
+  <div id="tournament-main" class="screen hidden">
+    <div class="tournament-content">
+      <header>
+        <h2 id="tournament-main-name">锦标赛</h2>
+        <p>房间码: <span id="tournament-main-code"></span> | 当前轮次: <span id="tournament-current-round">-</span></p>
+      </header>
+      <div class="tournament-layout">
+        <div class="standings-panel">
+          <h3>积分榜</h3>
+          <table id="standings-table">
+            <thead><tr><th>排名</th><th>玩家</th><th>积分</th><th>场次</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="schedule-panel">
+          <h3>赛程</h3>
+          <div id="schedule-list"></div>
+        </div>
+      </div>
+      <div id="tournament-status-bar">
+        <span id="tournament-status-text">等待对战分配...</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Lobby Screen -->
-  <div id="lobby" class="screen">
+  <div id="lobby" class="screen hidden">
     <div class="lobby-content">
       <h1 class="title">SeaWar</h1>
       <p class="subtitle">海战棋 - LAN 多人对战</p>
@@ -18,6 +69,14 @@
         <div class="join-section">
           <input type="text" id="roomIdInput" placeholder="输入房间号" maxlength="8">
           <button id="btnJoinRoom" class="btn btn-primary">加入房间</button>
+        </div>
+        <div class="tournament-section">
+          <p class="section-label">锦标赛</p>
+          <button id="btn-create-tournament" class="btn btn-primary">创建锦标赛</button>
+          <div class="join-section">
+            <input type="text" id="tournament-code-input" placeholder="输入锦标赛房间码" maxlength="6">
+            <button id="btn-join-tournament" class="btn btn-primary">加入锦标赛</button>
+          </div>
         </div>
       </div>
       <div id="roomInfo" class="room-info hidden">
@@ -84,6 +143,7 @@
           <div class="placement-controls">
             <button id="btnRotate" class="btn btn-secondary">旋转</button>
             <button id="btnRandom" class="btn btn-secondary">随机摆放</button>
+            <button id="btnClearPlacement" class="btn btn-secondary">清空</button>
             <button id="btnConfirm" class="btn btn-primary">确认</button>
           </div>
         </div>
@@ -125,6 +185,24 @@
             <button id="btnModalExit" class="btn btn-secondary">退出</button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tournament Config Modal -->
+  <div id="tournament-config-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h3>创建锦标赛</h3>
+      <input type="text" id="tournament-name-input" placeholder="锦标赛名称" maxlength="20" value="我的锦标赛" aria-label="锦标赛名称">
+      <label for="tournament-games-select">每轮局数</label>
+      <select id="tournament-games-select">
+        <option value="1">1局</option>
+        <option value="2">2局</option>
+        <option value="3" selected>3局</option>
+      </select>
+      <div class="modal-buttons">
+        <button id="btn-tournament-config-confirm" class="btn btn-primary">创建</button>
+        <button id="btn-tournament-config-cancel" class="btn btn-secondary">取消</button>
       </div>
     </div>
   </div>
