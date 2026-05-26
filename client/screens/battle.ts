@@ -205,3 +205,10 @@ export function handleItemSpawned(positions: { playerId: string; x: number; y: n
     }
   }
 }
+
+export function showTournamentInfo(show: boolean): void {
+  const infoBar = document.getElementById('tournament-battle-info');
+  if (infoBar) {
+    infoBar.classList.toggle('hidden', !show);
+  }
+}

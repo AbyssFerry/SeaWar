@@ -7,8 +7,64 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Tournament Menu Screen -->
+  <div id="tournament-menu" class="screen">
+    <div class="lobby-content">
+      <h1 class="title">SeaWar</h1>
+      <p class="subtitle">海战棋 - 锦标赛模式</p>
+      <div class="lobby-form">
+        <button id="btn-normal-game" class="btn btn-secondary">普通对战</button>
+        <button id="btn-create-tournament" class="btn btn-primary">创建锦标赛</button>
+        <div class="join-section">
+          <input type="text" id="tournament-code-input" placeholder="输入锦标赛房间码" maxlength="6">
+          <button id="btn-join-tournament" class="btn btn-primary">加入锦标赛</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tournament Lobby Screen -->
+  <div id="tournament-lobby" class="screen hidden">
+    <div class="lobby-content">
+      <h2 id="tournament-lobby-name">锦标赛</h2>
+      <p>房间码: <span id="tournament-lobby-code"></span></p>
+      <h3>参与者</h3>
+      <ul id="tournament-lobby-players"></ul>
+      <div class="lobby-form">
+        <button id="btn-start-tournament" class="btn btn-primary hidden">开始锦标赛</button>
+        <button id="btn-leave-tournament-lobby" class="btn btn-secondary">离开</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tournament Main Screen -->
+  <div id="tournament-main" class="screen hidden">
+    <div class="tournament-content">
+      <header>
+        <h2 id="tournament-main-name">锦标赛</h2>
+        <p>房间码: <span id="tournament-main-code"></span> | 当前轮次: <span id="tournament-current-round">-</span></p>
+      </header>
+      <div class="tournament-layout">
+        <div class="standings-panel">
+          <h3>积分榜</h3>
+          <table id="standings-table">
+            <thead><tr><th>排名</th><th>玩家</th><th>积分</th><th>场次</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="schedule-panel">
+          <h3>赛程</h3>
+          <div id="schedule-list"></div>
+        </div>
+      </div>
+      <div id="tournament-status-bar">
+        <span id="tournament-status-text">等待对战分配...</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Lobby Screen -->
-  <div id="lobby" class="screen">
+  <div id="lobby" class="screen hidden">
     <div class="lobby-content">
       <h1 class="title">SeaWar</h1>
       <p class="subtitle">海战棋 - LAN 多人对战</p>
@@ -94,6 +150,7 @@
   <!-- Battle Screen -->
   <div id="battle" class="screen hidden">
     <div class="battle-content">
+      <div id="tournament-battle-info" class="hidden">锦标赛对战中</div>
       <div class="battle-header">
         <div id="scoreDisplay" class="score-display">0 : 0</div>
         <div id="turnIndicator" class="turn-indicator">你的回合</div>

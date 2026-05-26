@@ -20,6 +20,14 @@ export const state = {
   enemyBoardState: Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill('unknown')) as string[][],
   myBoardHits: new Set<string>(),
   myBoardMisses: new Set<string>(),
+
+  // Tournament state
+  tournamentCode: '',
+  tournamentPhase: '' as 'lobby' | 'running' | 'ended' | '',
+  tournamentHostId: '',
+  isInTournamentMatch: false,
+  currentMatchId: '',
+  isSpectating: false,
 };
 
 export function resetGameState() {
@@ -35,4 +43,14 @@ export function resetGameState() {
   for (let y = 0; y < BOARD_SIZE; y++) {
     state.enemyBoardState[y].fill('unknown');
   }
+  state.isInTournamentMatch = false;
+  state.currentMatchId = '';
+  state.isSpectating = false;
+}
+
+export function resetTournamentState() {
+  state.tournamentCode = '';
+  state.tournamentPhase = '';
+  state.tournamentHostId = '';
+  resetGameState();
 }

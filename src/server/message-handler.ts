@@ -3,6 +3,7 @@ import { ClientMessage, ServerMessage, Room, Player, RoomPhase, ShellType, START
 import { validateShipPlacement, generateRandomShips } from './ship-validator';
 import { fire, useShell, checkWin, placeShips, createBoard, shouldSpawnItem, spawnItem } from './game-logic';
 import { createRoom, joinRoom, getRoom, leaveRoom, broadcast, getOpponent, resetRoomForRestart } from './room-manager';
+import { handleTournamentMessage, handleMatchRoomMessage } from './tournament-handler';
 
 const wsToRoom = new WeakMap<ServerWebSocket, { room: Room; player: Player }>();
 
@@ -94,6 +95,16 @@ export function handleMessage(ws: ServerWebSocket, data: string): void {
     message = JSON.parse(data) as ClientMessage;
   } catch {
     send(ws, { type: 'ERROR', message: 'Invalid JSON' });
+    return;
+  }
+
+  // Try tournament handler first
+  if (handleTournamentMessage(ws, message)) {
+    return;
+  }
+
+  // Try match room handler for in-game tournament messages
+  if (handleMatchRoomMessage(ws, message)) {
     return;
   }
 

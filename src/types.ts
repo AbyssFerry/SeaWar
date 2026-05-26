@@ -24,6 +24,44 @@ export type Player = {
 
 export type RoomPhase = 'lobby' | 'placement' | 'battle' | 'ended';
 
+export type TournamentPhase = 'lobby' | 'running' | 'ended';
+
+export type TournamentParticipant = {
+  id: string;
+  name: string;
+  ws: any;
+  score: number;
+  matchesPlayed: number;
+};
+
+export type TournamentMatchStatus = 'pending' | 'ongoing' | 'completed';
+
+export type TournamentMatch = {
+  id: string;
+  round: number;
+  participantA: string;
+  participantB: string;
+  status: TournamentMatchStatus;
+  winner: string | null;
+  gamesToWin: number;
+  winsA: number;
+  winsB: number;
+  matchRoomId: string | null;
+};
+
+export type Tournament = {
+  id: string;
+  name: string;
+  code: string;
+  hostId: string;
+  phase: TournamentPhase;
+  participants: Map<string, TournamentParticipant>;
+  matches: TournamentMatch[];
+  totalRounds: number;
+  currentRound: number;
+  gamesToWin: number;
+};
+
 export type Room = {
   id: string;
   players: [Player | null, Player | null];
@@ -45,7 +83,14 @@ export type ClientMessage =
   | { type: 'PLACE_SHIPS_AUTO' }
   | { type: 'FIRE'; x: number; y: number }
   | { type: 'USE_SHELL'; shellType: string; x: number; y: number }
-  | { type: 'PLAY_AGAIN' };
+  | { type: 'PLAY_AGAIN' }
+  | { type: 'CREATE_TOURNAMENT'; name: string; gamesToWin: number }
+  | { type: 'JOIN_TOURNAMENT'; code: string; playerName: string }
+  | { type: 'LEAVE_TOURNAMENT' }
+  | { type: 'START_TOURNAMENT' }
+  | { type: 'ENTER_MATCH'; matchId: string }
+  | { type: 'SPECTATE_MATCH'; matchId: string }
+  | { type: 'STOP_SPECTATING' };
 
 export type ServerMessage =
   | { type: 'ROOM_CREATED'; roomId: string }
@@ -60,6 +105,16 @@ export type ServerMessage =
   | { type: 'GAME_OVER'; winner: string; reason: string; scores: number[]; revealShips: { playerId: string; ships: Ship[] }[] }
   | { type: 'RESTART_READY' }
   | { type: 'OPPONENT_LEFT' }
+  | { type: 'TOURNAMENT_CREATED'; code: string }
+  | { type: 'TOURNAMENT_STATE'; name: string; code: string; hostId: string; participants: { id: string; name: string }[]; phase: TournamentPhase }
+  | { type: 'TOURNAMENT_STARTED'; matches: Omit<TournamentMatch, 'matchRoomId'>[] }
+  | { type: 'MATCH_ASSIGNED'; matchId: string }
+  | { type: 'MATCH_STARTED'; matchId: string }
+  | { type: 'MATCH_ENDED'; matchId: string; winnerId: string | null; winsA: number; winsB: number }
+  | { type: 'STANDINGS_UPDATE'; standings: { participantId: string; name: string; score: number; matchesPlayed: number }[] }
+  | { type: 'ROUND_COMPLETED'; nextRound: number }
+  | { type: 'TOURNAMENT_ENDED'; rankings: { rank: number; participantId: string; name: string; score: number }[] }
+  | { type: 'FORCE_ENTER_MATCH'; matchId: string }
   | { type: 'ERROR'; message: string };
 
 export const SHELL_TYPES = ['cross', 'multi', 'nuke'] as const;

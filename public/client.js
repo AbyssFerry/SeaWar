@@ -25,7 +25,13 @@ var state = {
   placementBoardCells: [],
   enemyBoardState: Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill("unknown")),
   myBoardHits: new Set,
-  myBoardMisses: new Set
+  myBoardMisses: new Set,
+  tournamentCode: "",
+  tournamentPhase: "",
+  tournamentHostId: "",
+  isInTournamentMatch: false,
+  currentMatchId: "",
+  isSpectating: false
 };
 function resetGameState() {
   state.isMyTurn = false;
@@ -40,6 +46,15 @@ function resetGameState() {
   for (let y = 0;y < BOARD_SIZE; y++) {
     state.enemyBoardState[y].fill("unknown");
   }
+  state.isInTournamentMatch = false;
+  state.currentMatchId = "";
+  state.isSpectating = false;
+}
+function resetTournamentState() {
+  state.tournamentCode = "";
+  state.tournamentPhase = "";
+  state.tournamentHostId = "";
+  resetGameState();
 }
 
 // client/ws.ts
@@ -590,6 +605,12 @@ function handleItemSpawned(positions) {
     }
   }
 }
+function showTournamentInfo(show) {
+  const infoBar = document.getElementById("tournament-battle-info");
+  if (infoBar) {
+    infoBar.classList.toggle("hidden", !show);
+  }
+}
 
 // client/screens/gameover.ts
 function showModal(isWinner, scores, revealShips) {
@@ -627,6 +648,182 @@ function hideModal() {
   gameOverModal.classList.add("hidden");
 }
 
+// client/screens/tournament-menu.ts
+function init4() {
+  const normalBtn = document.getElementById("btn-normal-game");
+  const createBtn = document.getElementById("btn-create-tournament");
+  const joinBtn = document.getElementById("btn-join-tournament");
+  const codeInput = document.getElementById("tournament-code-input");
+  normalBtn?.addEventListener("click", () => {
+    showScreen("lobby");
+  });
+  createBtn?.addEventListener("click", () => {
+    const name = prompt("锦标赛名称:", "我的锦标赛") || "我的锦标赛";
+    const gamesStr = prompt("每轮几局决胜负? (1/2/3)", "1") || "1";
+    const gamesToWin = parseInt(gamesStr);
+    if (gamesToWin < 1 || gamesToWin > 3) {
+      alert("请输入 1, 2 或 3");
+      return;
+    }
+    send({ type: "CREATE_TOURNAMENT", name, gamesToWin });
+  });
+  joinBtn?.addEventListener("click", () => {
+    const code = codeInput.value.trim();
+    if (code.length !== 6) {
+      alert("请输入6位房间码");
+      return;
+    }
+    const playerName = prompt("你的名字:", "Player") || "Player";
+    send({ type: "JOIN_TOURNAMENT", code, playerName });
+  });
+}
+
+// client/screens/tournament-lobby.ts
+function init5() {
+  const startBtn = document.getElementById("btn-start-tournament");
+  const leaveBtn = document.getElementById("btn-leave-tournament-lobby");
+  startBtn?.addEventListener("click", () => {
+    send({ type: "START_TOURNAMENT" });
+  });
+  leaveBtn?.addEventListener("click", () => {
+    send({ type: "LEAVE_TOURNAMENT" });
+    resetTournamentState();
+    showScreen("tournament-menu");
+  });
+}
+function showTournamentLobby(name, code, hostId, participants) {
+  showScreen("tournament-lobby");
+  const nameEl = document.getElementById("tournament-lobby-name");
+  const codeEl = document.getElementById("tournament-lobby-code");
+  const listEl = document.getElementById("tournament-lobby-players");
+  const startBtn = document.getElementById("btn-start-tournament");
+  if (nameEl)
+    nameEl.textContent = name;
+  if (codeEl)
+    codeEl.textContent = code;
+  if (listEl) {
+    listEl.innerHTML = "";
+    for (const p of participants) {
+      const li = document.createElement("li");
+      li.textContent = p.name + (p.id === hostId ? " (房主)" : "");
+      listEl.appendChild(li);
+    }
+  }
+  if (startBtn) {
+    startBtn.classList.toggle("hidden", state.myId !== hostId);
+  }
+}
+
+// client/screens/tournament-main.ts
+var currentMatches = [];
+var currentRound = 1;
+function init6() {}
+function showTournamentMain(name, code) {
+  showScreen("tournament-main");
+  const nameEl = document.getElementById("tournament-main-name");
+  const codeEl = document.getElementById("tournament-main-code");
+  if (nameEl)
+    nameEl.textContent = name;
+  if (codeEl)
+    codeEl.textContent = code;
+}
+function updateStandings(standings) {
+  const tbody = document.querySelector("#standings-table tbody");
+  if (!tbody)
+    return;
+  tbody.innerHTML = "";
+  standings.forEach((s, index) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${index + 1}</td><td>${s.name}</td><td>${s.score}</td><td>${s.matchesPlayed}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+function updateSchedule(matches, round) {
+  currentMatches = matches;
+  currentRound = round;
+  const roundEl = document.getElementById("tournament-current-round");
+  if (roundEl)
+    roundEl.textContent = String(round);
+  const listEl = document.getElementById("schedule-list");
+  if (!listEl)
+    return;
+  listEl.innerHTML = "";
+  for (const match of matches) {
+    const div = document.createElement("div");
+    div.className = `match-card ${match.status}`;
+    const isMyMatch = match.participantA === state.myId || match.participantB === state.myId;
+    const canSpectate = match.status === "ongoing" && !isMyMatch;
+    let html = `<div class="match-players">${match.participantAName || "???"} vs ${match.participantBName || "???"}</div>`;
+    html += `<div class="match-status">${getStatusText(match)}</div>`;
+    if (match.status === "completed") {
+      html += `<div class="match-result">${match.winsA} - ${match.winsB}</div>`;
+    }
+    if (canSpectate) {
+      html += `<button class="btn-spectate" data-match-id="${match.id}">观战</button>`;
+    }
+    div.innerHTML = html;
+    listEl.appendChild(div);
+  }
+  listEl.querySelectorAll(".btn-spectate").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const matchId = e.target.dataset.matchId;
+      if (matchId) {
+        send({ type: "SPECTATE_MATCH", matchId });
+        state.isSpectating = true;
+        state.currentMatchId = matchId;
+      }
+    });
+  });
+}
+function getStatusText(match) {
+  if (match.status === "pending")
+    return "未开始";
+  if (match.status === "ongoing")
+    return "进行中";
+  if (match.status === "completed")
+    return "已结束";
+  return match.status;
+}
+function showMatchAssigned(matchId) {
+  state.isInTournamentMatch = true;
+  state.currentMatchId = matchId;
+  state.isSpectating = false;
+  const statusText = document.getElementById("tournament-status-text");
+  if (statusText)
+    statusText.textContent = "你已分配到对战，正在进入...";
+  send({ type: "ENTER_MATCH", matchId });
+}
+function showForceEnterMatch(matchId) {
+  if (state.isSpectating) {
+    send({ type: "STOP_SPECTATING" });
+  }
+  showMatchAssigned(matchId);
+}
+function handleMatchEnded(matchId) {
+  state.isInTournamentMatch = false;
+  state.currentMatchId = "";
+  state.isSpectating = false;
+  const statusText = document.getElementById("tournament-status-text");
+  if (statusText)
+    statusText.textContent = "对战结束，等待下一轮...";
+}
+function showRoundCompleted(nextRound) {
+  const statusText = document.getElementById("tournament-status-text");
+  if (statusText)
+    statusText.textContent = `第 ${nextRound} 轮即将开始`;
+}
+function showTournamentEnded(rankings) {
+  const statusText = document.getElementById("tournament-status-text");
+  if (statusText) {
+    let html = "<h3>锦标赛结束！</h3><ol>";
+    for (const r of rankings) {
+      html += `<li>${r.name} - ${r.score} 分</li>`;
+    }
+    html += "</ol>";
+    statusText.innerHTML = html;
+  }
+}
+
 // client/main.ts
 function handleServerMessage(msg) {
   switch (msg.type) {
@@ -652,6 +849,9 @@ function handleServerMessage(msg) {
       initBoards();
       updateTurnIndicator();
       updateShellInventory();
+      if (state.isInTournamentMatch) {
+        showTournamentInfo(true);
+      }
       break;
     case "FIRE_RESULT":
       handleFireResult(msg);
@@ -671,7 +871,14 @@ function handleServerMessage(msg) {
       updateShellInventory();
       break;
     case "GAME_OVER":
-      showModal(msg.winner === state.myId, msg.scores, msg.revealShips);
+      if (state.isInTournamentMatch) {
+        showTournamentInfo(false);
+        setTimeout(() => {
+          showTournamentMain("", state.tournamentCode);
+        }, 2000);
+      } else {
+        showModal(msg.winner === state.myId, msg.scores, msg.revealShips);
+      }
       break;
     case "RESTART_READY":
       resetGameState();
@@ -683,6 +890,40 @@ function handleServerMessage(msg) {
     case "OPPONENT_LEFT":
       alert("对手已离开");
       break;
+    case "TOURNAMENT_CREATED":
+      state.tournamentCode = msg.code;
+      break;
+    case "TOURNAMENT_STATE":
+      state.tournamentPhase = msg.phase;
+      state.tournamentHostId = msg.hostId;
+      if (msg.phase === "lobby") {
+        showTournamentLobby(msg.name, msg.code, msg.hostId, msg.participants);
+      }
+      break;
+    case "TOURNAMENT_STARTED":
+      state.tournamentPhase = "running";
+      showTournamentMain(msg.matches[0]?.name || "锦标赛", state.tournamentCode);
+      updateSchedule(msg.matches, 1);
+      break;
+    case "MATCH_ASSIGNED":
+      showMatchAssigned(msg.matchId);
+      break;
+    case "MATCH_ENDED":
+      handleMatchEnded(msg.matchId);
+      break;
+    case "STANDINGS_UPDATE":
+      updateStandings(msg.standings);
+      break;
+    case "ROUND_COMPLETED":
+      showRoundCompleted(msg.nextRound);
+      break;
+    case "TOURNAMENT_ENDED":
+      state.tournamentPhase = "ended";
+      showTournamentEnded(msg.rankings);
+      break;
+    case "FORCE_ENTER_MATCH":
+      showForceEnterMatch(msg.matchId);
+      break;
     case "ERROR":
       console.error("Server error:", msg.message);
       break;
@@ -691,4 +932,8 @@ function handleServerMessage(msg) {
 init();
 init2();
 init3();
+init4();
+init5();
+init6();
+showScreen("tournament-menu");
 initWebSocket(handleServerMessage);
